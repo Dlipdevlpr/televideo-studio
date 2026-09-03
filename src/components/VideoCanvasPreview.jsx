@@ -66,6 +66,10 @@ export default function VideoCanvasPreview({
   const isRecordingRef = useRef(false);
   const lastUiUpdateRef = useRef(0);
 
+  // Direct DOM refs for high-performance UI updates (bypasses React)
+  const timeDisplayRef = useRef(null);
+  const progressBarRef = useRef(null);
+
   // This ref holds ALL canvas drawing config. Updated synchronously on
   // every render (cheap pointer swap), but the animation loop reads it
   // without any useEffect dependency — so the loop NEVER restarts.
@@ -142,11 +146,16 @@ export default function VideoCanvasPreview({
         const prog = Math.min(1, elapsed / dur);
         progressRef.current = prog;
 
-        // Update React UI at ~6 Hz — but SKIP entirely during recording
-        // to keep the main thread 100% free for canvas drawing.
-        if (!isRecordingRef.current) {
-          if (timestamp - lastUiUpdateRef.current > 160 || prog >= 1) {
-            lastUiUpdateRef.current = timestamp;
+        // Direct DOM updates bypass React's virtual DOM entirely.
+        // This is extremely fast (sub-millisecond) and keeps the DOM active so
+        // Android WebView doesn't aggressively throttle requestAnimationFrame.
+        if (timestamp - lastUiUpdateRef.current > 33 || prog >= 1) { // ~30 FPS UI updates
+          lastUiUpdateRef.current = timestamp;
+          if (timeDisplayRef.current) timeDisplayRef.current.innerText = formatTime(elapsed);
+          if (progressBarRef.current) progressBarRef.current.value = prog;
+          
+          // Only sync React state if we are NOT recording, to prevent full re-renders
+          if (!isRecordingRef.current) {
             setCurrentTime(elapsed);
             setProgress(prog);
           }
@@ -311,8 +320,13 @@ export default function VideoCanvasPreview({
       const exportTimer = setInterval(async () => {
         const elapsed = Date.now() - startExportTime;
         const pct = Math.min(100, Math.floor((elapsed / targetDurationMs) * 100));
-        // Use requestIdleCallback or rAF to batch the UI update outside canvas work
-        requestAnimationFrame(() => setExportPercent(pct));
+        
+        // Use requestAnimationFrame to batch UI updates
+        requestAnimationFrame(() => {
+          setExportPercent(pct);
+          // Also manually update the DOM progress bar to keep rAF alive on aggressive Android devices
+          if (progressBarRef.current) progressBarRef.current.value = pct / 100;
+        });
 
         if (elapsed >= targetDurationMs) {
           clearInterval(exportTimer);
@@ -394,8 +408,9 @@ export default function VideoCanvasPreview({
           </button>
 
           <div className="playback-progress">
-            <span>{formatTime(currentTime)}</span>
+            <span ref={timeDisplayRef}>{formatTime(currentTime)}</span>
             <input
+              ref={progressBarRef}
               type="range"
               className="range-slider seek-slider"
               min="0"
