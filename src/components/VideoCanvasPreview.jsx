@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Play, Pause, RotateCcw, Download, Radio, Volume2, Share2 } from 'lucide-react';
+import { Play, Pause, RotateCcw, Download, Radio, Volume2, Share2, X, Film } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { renderTeleprompterCanvas } from '../utils/teleprompterEngine';
 import { speechManager } from '../utils/speechManager';
@@ -53,6 +53,7 @@ export default function VideoCanvasPreview({
   const [isRecordingVideo, setIsRecordingVideo] = useState(false);
   const [exportPercent, setExportPercent] = useState(0);
   const [lastExportResult, setLastExportResult] = useState(null);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   // Refs for animation & closure-safe values
   const animFrameIdRef = useRef(null);
@@ -308,6 +309,7 @@ export default function VideoCanvasPreview({
             if (videoExporterRef.current && videoExporterRef.current.isRecording) {
               const res = await videoExporterRef.current.stopRecordingAndDownload('teleprompt_reel', totalDuration);
               setLastExportResult(res);
+              setShowExportModal(true);
               confetti({
                 particleCount: 90,
                 spread: 70,
@@ -348,56 +350,23 @@ export default function VideoCanvasPreview({
             </div>
           ) : (
             <div className="preview-meta-row">
-              <span className="preview-status-tag">
-                <span>Studio</span>
-                {audioMode === 'tts' && ttsRangeMode !== 'full' && (
-                  <span className="meta-badge tts-badge">
-                    🔊 {ttsRangeMode === 'first-line' ? 'Hook' : 'Selective'}
-                  </span>
-                )}
-                {audioMode === 'upload' && customAudioFile && (
-                  <span className="meta-badge audio-badge">
-                    🎵 Audio
-                  </span>
-                )}
-              </span>
-
-              {setAspectRatio && (
-                <div className="preview-aspect-switcher">
+              <span className="preview-aspect-label">STAGE • {aspectRatio}</span>
+              <div className="aspect-switcher-inline">
+                {['9:16', '16:9', '1:1'].map((ratio) => (
                   <button
-                    className={`aspect-mini-btn ${aspectRatio === '9:16' ? 'active' : ''}`}
-                    onClick={() => setAspectRatio('9:16')}
-                    title="9:16 Shorts/Reels"
+                    key={ratio}
+                    className={`aspect-mini-btn ${aspectRatio === ratio ? 'active' : ''}`}
+                    onClick={() => setAspectRatio && setAspectRatio(ratio)}
                   >
-                    9:16
+                    {ratio}
                   </button>
-                  <button
-                    className={`aspect-mini-btn ${aspectRatio === '16:9' ? 'active' : ''}`}
-                    onClick={() => setAspectRatio('16:9')}
-                    title="16:9 Landscape"
-                  >
-                    16:9
-                  </button>
-                  <button
-                    className={`aspect-mini-btn ${aspectRatio === '1:1' ? 'active' : ''}`}
-                    onClick={() => setAspectRatio('1:1')}
-                    title="1:1 Square"
-                  >
-                    1:1
-                  </button>
-                </div>
-              )}
+                ))}
+              </div>
             </div>
           )}
         </div>
 
-        <div
-          className="canvas-container"
-          style={{
-            aspectRatio: aspectRatio === '9:16' ? '9/16' : aspectRatio === '16:9' ? '16/9' : '1/1',
-            maxHeight: aspectRatio === '16:9' ? '45vh' : '62vh'
-          }}
-        >
+        <div className={`canvas-container aspect-${aspectRatio.replace(':', '-')}`}>
           <canvas
             ref={canvasRef}
             width={canvasWidth}
@@ -439,27 +408,90 @@ export default function VideoCanvasPreview({
           </button>
         </div>
 
-        {lastExportResult?.uri && (
+        {lastExportResult && (
           <div className="last-export-card">
             <span className="last-export-text">✅ Video Ready!</span>
             <button
               className="btn btn-sm btn-primary save-again-btn"
-              onClick={async () => {
-                try {
-                  await Share.share({
-                    title: 'TeleVideo Studio Video',
-                    text: 'Your teleprompter reel is ready!',
-                    url: lastExportResult.uri,
-                    dialogTitle: 'Save Video to Phone or Share'
-                  });
-                } catch (e) {
-                  console.warn(e);
-                }
-              }}
+              onClick={() => setShowExportModal(true)}
             >
-              <Share2 size={14} />
-              <span>Save / Share Again</span>
+              <Film size={14} />
+              <span>Watch & Save Reel</span>
             </button>
+          </div>
+        )}
+
+        {showExportModal && lastExportResult?.blob && (
+          <div className="export-modal-backdrop" onClick={() => setShowExportModal(false)}>
+            <div className="export-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="export-modal-header">
+                <div className="export-modal-title">
+                  <Film size={22} className="modal-title-icon" />
+                  <div>
+                    <h4 className="modal-title-heading">Reel Exported!</h4>
+                    <p className="modal-title-sub">
+                      {lastExportResult.filename} • {(lastExportResult.size / (1024 * 1024)).toFixed(1)} MB
+                    </p>
+                  </div>
+                </div>
+                <button className="modal-close-btn" onClick={() => setShowExportModal(false)}>
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="export-modal-video-box">
+                <video
+                  src={URL.createObjectURL(lastExportResult.blob)}
+                  controls
+                  autoPlay
+                  playsInline
+                  className="export-video-player"
+                />
+              </div>
+
+              <div className="export-modal-actions">
+                <button
+                  className="btn btn-primary flex-1 py-2"
+                  onClick={() => {
+                    const url = URL.createObjectURL(lastExportResult.blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = lastExportResult.filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(() => document.body.removeChild(a), 500);
+                  }}
+                >
+                  <Download size={16} />
+                  <span>Download Video</span>
+                </button>
+
+                {lastExportResult?.uri && (
+                  <button
+                    className="btn btn-secondary py-2"
+                    onClick={async () => {
+                      try {
+                        await Share.share({
+                          title: 'TeleVideo Studio Video',
+                          text: 'Your teleprompter reel is ready!',
+                          url: lastExportResult.uri,
+                          dialogTitle: 'Save Video to Phone or Share'
+                        });
+                      } catch (e) {
+                        console.warn(e);
+                      }
+                    }}
+                  >
+                    <Share2 size={16} />
+                    <span>Save / Share</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="export-modal-tip">
+                💡 <strong>Playback Tip:</strong> You can watch and listen to your exported reel right here! If playing the downloaded file offline on Windows or your phone, open it with <strong>Google Chrome</strong>, <strong>Edge</strong>, or <strong>VLC</strong>.
+              </div>
+            </div>
           </div>
         )}
       </div>
