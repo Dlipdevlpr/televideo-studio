@@ -23,6 +23,7 @@ export default function VideoCanvasPreview({
   watermarkText,
   showWatermark,
   aspectRatio,
+  setAspectRatio,
   audioMode,
   selectedVoiceIndex,
   speechRate,
@@ -336,26 +337,54 @@ export default function VideoCanvasPreview({
   return (
     <div className="canvas-stage flex-1">
       <div className="phone-mockup-wrapper">
-        <div className="flex items-center gap-2 mb-2">
+        <div className="preview-stage-header">
           {isRecordingVideo ? (
             <div className="recording-indicator">
               <span className="pulse-dot"></span>
               <span>RECORDING REEL... ({exportPercent}%)</span>
             </div>
           ) : (
-            <span className="text-xs text-gray-400 font-medium flex items-center gap-1.5">
-              <span>Live Teleprompter Studio ({aspectRatio})</span>
-              {audioMode === 'tts' && ttsRangeMode !== 'full' && (
-                <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/40">
-                  🔊 TTS Scope: {ttsRangeMode === 'first-line' ? 'Hook Only' : ttsRangeMode === 'first-two' ? 'First 2 Lines' : 'Selective Lines'}
-                </span>
+            <div className="preview-meta-row">
+              <span className="preview-status-tag">
+                <span>Studio</span>
+                {audioMode === 'tts' && ttsRangeMode !== 'full' && (
+                  <span className="meta-badge tts-badge">
+                    🔊 {ttsRangeMode === 'first-line' ? 'Hook' : 'Selective'}
+                  </span>
+                )}
+                {audioMode === 'upload' && customAudioFile && (
+                  <span className="meta-badge audio-badge">
+                    🎵 Audio
+                  </span>
+                )}
+              </span>
+
+              {setAspectRatio && (
+                <div className="preview-aspect-switcher">
+                  <button
+                    className={`aspect-mini-btn ${aspectRatio === '9:16' ? 'active' : ''}`}
+                    onClick={() => setAspectRatio('9:16')}
+                    title="9:16 Shorts/Reels"
+                  >
+                    9:16
+                  </button>
+                  <button
+                    className={`aspect-mini-btn ${aspectRatio === '16:9' ? 'active' : ''}`}
+                    onClick={() => setAspectRatio('16:9')}
+                    title="16:9 Landscape"
+                  >
+                    16:9
+                  </button>
+                  <button
+                    className={`aspect-mini-btn ${aspectRatio === '1:1' ? 'active' : ''}`}
+                    onClick={() => setAspectRatio('1:1')}
+                    title="1:1 Square"
+                  >
+                    1:1
+                  </button>
+                </div>
               )}
-              {audioMode === 'upload' && customAudioFile && (
-                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/40">
-                  🎵 Custom Voiceover Audio Attached
-                </span>
-              )}
-            </span>
+            </div>
           )}
         </div>
 
@@ -363,7 +392,7 @@ export default function VideoCanvasPreview({
           className="canvas-container"
           style={{
             aspectRatio: aspectRatio === '9:16' ? '9/16' : aspectRatio === '16:9' ? '16/9' : '1/1',
-            maxHeight: aspectRatio === '16:9' ? '50vh' : '70vh'
+            maxHeight: aspectRatio === '16:9' ? '45vh' : '62vh'
           }}
         >
           <canvas
@@ -379,7 +408,7 @@ export default function VideoCanvasPreview({
             {isPlaying ? <Pause size={20} /> : <Play size={20} className="ml-0.5" />}
           </button>
 
-          <button className="btn btn-secondary btn-sm" onClick={handleRestart} title="Restart">
+          <button className="btn btn-secondary btn-sm restart-btn" onClick={handleRestart} title="Restart">
             <RotateCcw size={14} />
           </button>
 
@@ -398,12 +427,12 @@ export default function VideoCanvasPreview({
           </div>
 
           <button
-            className="btn btn-accent btn-sm ml-2 hidden sm:flex"
+            className="btn btn-accent btn-sm control-export-btn"
             onClick={handleExportVideo}
             disabled={isExporting || isRecordingVideo}
           >
             <Download size={14} />
-            <span>{isExporting ? `Exporting (${exportPercent}%)...` : 'Export'}</span>
+            <span className="btn-text">{isExporting ? `${exportPercent}%` : 'Export'}</span>
           </button>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { FileText, PlaySquare, Sliders } from 'lucide-react';
 import Navbar from './components/Navbar';
 import ScriptEditor from './components/ScriptEditor';
 import CustomizerPanel from './components/CustomizerPanel';
@@ -14,6 +15,7 @@ export default function App() {
 
   // Aspect Ratio & Layout State
   const [aspectRatio, setAspectRatio] = useState('9:16'); // '9:16' | '16:9' | '1:1'
+  const [mobileTab, setMobileTab] = useState('preview'); // 'script' | 'preview' | 'style'
   
   // Teleprompter & Styling State
   const [activePresetId, setActivePresetId] = useState('smooth-teleprompter');
@@ -111,102 +113,136 @@ export default function App() {
       {/* Main Workspace Layout */}
       <main className="main-workspace">
         {/* Left Panel: Script & Audio Editor */}
-        <ScriptEditor
-          scriptText={scriptText}
-          setScriptText={setScriptText}
-          audioMode={audioMode}
-          setAudioMode={setAudioMode}
-          selectedVoiceIndex={selectedVoiceIndex}
-          setSelectedVoiceIndex={setSelectedVoiceIndex}
-          speechRate={speechRate}
-          setSpeechRate={setSpeechRate}
-          onStartMicRecording={handleStartMicRecording}
-          onStopMicRecording={handleStopMicRecording}
-          isRecordingAudio={isRecordingAudio}
-          customAudioFile={customAudioFile}
-          setCustomAudioFile={setCustomAudioFile}
-          ttsRangeMode={ttsRangeMode}
-          setTtsRangeMode={setTtsRangeMode}
-          selectedTtsLines={selectedTtsLines}
-          setSelectedTtsLines={setSelectedTtsLines}
-        />
+        <div className={`panel-wrapper panel-wrapper-script ${mobileTab === 'script' ? 'mobile-active' : ''}`}>
+          <ScriptEditor
+            scriptText={scriptText}
+            setScriptText={setScriptText}
+            audioMode={audioMode}
+            setAudioMode={setAudioMode}
+            selectedVoiceIndex={selectedVoiceIndex}
+            setSelectedVoiceIndex={setSelectedVoiceIndex}
+            speechRate={speechRate}
+            setSpeechRate={setSpeechRate}
+            onStartMicRecording={handleStartMicRecording}
+            onStopMicRecording={handleStopMicRecording}
+            isRecordingAudio={isRecordingAudio}
+            customAudioFile={customAudioFile}
+            setCustomAudioFile={setCustomAudioFile}
+            ttsRangeMode={ttsRangeMode}
+            setTtsRangeMode={setTtsRangeMode}
+            selectedTtsLines={selectedTtsLines}
+            setSelectedTtsLines={setSelectedTtsLines}
+          />
+        </div>
 
         {/* Center Panel: Live Video Canvas Stage */}
-        <VideoCanvasPreview
-          scriptText={scriptText}
-          scrollMode={scrollMode}
-          fontFamily={fontFamily}
-          fontSize={fontSize}
-          textColor={textColor}
-          highlightColor={highlightColor}
-          activeLineBg={activeLineBg}
-          boxOpacity={boxOpacity}
-          bgTheme={bgTheme}
-          solidBgColor={solidBgColor}
-          textPosition={textPosition}
-          speedWpm={speedWpm}
-          showProgressBar={showProgressBar}
-          showAudioVisualizer={showAudioVisualizer}
-          watermarkText={watermarkText}
-          showWatermark={showWatermark}
-          aspectRatio={aspectRatio}
-          audioMode={audioMode}
-          selectedVoiceIndex={selectedVoiceIndex}
-          speechRate={speechRate}
-          customAudioFile={customAudioFile}
-          isExporting={isExporting}
-          setIsExporting={setIsExporting}
-          showReadingBox={showReadingBox}
-          boxScale={boxScale}
-          boxWidthPercent={boxWidthPercent}
-          boxBorderRadius={boxBorderRadius}
-          boxBorderWidth={boxBorderWidth}
-          ttsRangeMode={ttsRangeMode}
-          selectedTtsLines={selectedTtsLines}
-        />
+        <div className={`panel-wrapper panel-wrapper-preview ${mobileTab === 'preview' ? 'mobile-active' : ''}`}>
+          <VideoCanvasPreview
+            scriptText={scriptText}
+            scrollMode={scrollMode}
+            fontFamily={fontFamily}
+            fontSize={fontSize}
+            textColor={textColor}
+            highlightColor={highlightColor}
+            activeLineBg={activeLineBg}
+            boxOpacity={boxOpacity}
+            bgTheme={bgTheme}
+            solidBgColor={solidBgColor}
+            textPosition={textPosition}
+            speedWpm={speedWpm}
+            showProgressBar={showProgressBar}
+            showAudioVisualizer={showAudioVisualizer}
+            watermarkText={watermarkText}
+            showWatermark={showWatermark}
+            aspectRatio={aspectRatio}
+            setAspectRatio={setAspectRatio}
+            audioMode={audioMode}
+            selectedVoiceIndex={selectedVoiceIndex}
+            speechRate={speechRate}
+            customAudioFile={customAudioFile}
+            isExporting={isExporting}
+            setIsExporting={setIsExporting}
+            showReadingBox={showReadingBox}
+            boxScale={boxScale}
+            boxWidthPercent={boxWidthPercent}
+            boxBorderRadius={boxBorderRadius}
+            boxBorderWidth={boxBorderWidth}
+            ttsRangeMode={ttsRangeMode}
+            selectedTtsLines={selectedTtsLines}
+          />
+        </div>
 
         {/* Right Panel: Teleprompter Customizer */}
-        <CustomizerPanel
-          scrollMode={scrollMode}
-          setScrollMode={setScrollMode}
-          fontFamily={fontFamily}
-          setFontFamily={setFontFamily}
-          fontSize={fontSize}
-          setFontSize={setFontSize}
-          textColor={textColor}
-          setTextColor={setTextColor}
-          highlightColor={highlightColor}
-          setHighlightColor={setHighlightColor}
-          activeLineBg={activeLineBg}
-          setActiveLineBg={setActiveLineBg}
-          bgTheme={bgTheme}
-          setBgTheme={setBgTheme}
-          solidBgColor={solidBgColor}
-          setSolidBgColor={setSolidBgColor}
-          textPosition={textPosition}
-          setTextPosition={setTextPosition}
-          speedWpm={speedWpm}
-          setSpeedWpm={setSpeedWpm}
-          showProgressBar={showProgressBar}
-          setShowProgressBar={setShowProgressBar}
-          showAudioVisualizer={showAudioVisualizer}
-          setShowAudioVisualizer={setShowAudioVisualizer}
-          watermarkText={watermarkText}
-          setWatermarkText={setWatermarkText}
-          showWatermark={showWatermark}
-          setShowWatermark={setShowWatermark}
-          showReadingBox={showReadingBox}
-          setShowReadingBox={setShowReadingBox}
-          boxScale={boxScale}
-          setBoxScale={setBoxScale}
-          boxWidthPercent={boxWidthPercent}
-          setBoxWidthPercent={setBoxWidthPercent}
-          boxBorderRadius={boxBorderRadius}
-          setBoxBorderRadius={setBoxBorderRadius}
-          boxBorderWidth={boxBorderWidth}
-          setBoxBorderWidth={setBoxBorderWidth}
-        />
+        <div className={`panel-wrapper panel-wrapper-style ${mobileTab === 'style' ? 'mobile-active' : ''}`}>
+          <CustomizerPanel
+            scrollMode={scrollMode}
+            setScrollMode={setScrollMode}
+            fontFamily={fontFamily}
+            setFontFamily={setFontFamily}
+            fontSize={fontSize}
+            setFontSize={setFontSize}
+            textColor={textColor}
+            setTextColor={setTextColor}
+            highlightColor={highlightColor}
+            setHighlightColor={setHighlightColor}
+            activeLineBg={activeLineBg}
+            setActiveLineBg={setActiveLineBg}
+            bgTheme={bgTheme}
+            setBgTheme={setBgTheme}
+            solidBgColor={solidBgColor}
+            setSolidBgColor={setSolidBgColor}
+            textPosition={textPosition}
+            setTextPosition={setTextPosition}
+            speedWpm={speedWpm}
+            setSpeedWpm={setSpeedWpm}
+            showProgressBar={showProgressBar}
+            setShowProgressBar={setShowProgressBar}
+            showAudioVisualizer={showAudioVisualizer}
+            setShowAudioVisualizer={setShowAudioVisualizer}
+            watermarkText={watermarkText}
+            setWatermarkText={setWatermarkText}
+            showWatermark={showWatermark}
+            setShowWatermark={setShowWatermark}
+            showReadingBox={showReadingBox}
+            setShowReadingBox={setShowReadingBox}
+            boxScale={boxScale}
+            setBoxScale={setBoxScale}
+            boxWidthPercent={boxWidthPercent}
+            setBoxWidthPercent={setBoxWidthPercent}
+            boxBorderRadius={boxBorderRadius}
+            setBoxBorderRadius={setBoxBorderRadius}
+            boxBorderWidth={boxBorderWidth}
+            setBoxBorderWidth={setBoxBorderWidth}
+          />
+        </div>
       </main>
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="mobile-bottom-nav">
+        <button
+          className={`mobile-nav-btn ${mobileTab === 'script' ? 'active' : ''}`}
+          onClick={() => setMobileTab('script')}
+        >
+          <FileText size={20} />
+          <span>Script</span>
+        </button>
+
+        <button
+          className={`mobile-nav-btn ${mobileTab === 'preview' ? 'active' : ''}`}
+          onClick={() => setMobileTab('preview')}
+        >
+          <PlaySquare size={20} />
+          <span>Studio</span>
+        </button>
+
+        <button
+          className={`mobile-nav-btn ${mobileTab === 'style' ? 'active' : ''}`}
+          onClick={() => setMobileTab('style')}
+        >
+          <Sliders size={20} />
+          <span>Style</span>
+        </button>
+      </nav>
 
       {/* Presets Modal */}
       <PresetsModal

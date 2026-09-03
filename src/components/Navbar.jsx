@@ -1,16 +1,16 @@
 import React from 'react';
-import { Video, Sparkles, Download, Layers } from 'lucide-react';
+import { Video, Download, Layers } from 'lucide-react';
 
 export default function Navbar({ onOpenPresets, onExport, isExporting, isRecording, aspectRatio, setAspectRatio }) {
   return (
     <header className="navbar">
       <div className="brand-logo">
-        <Video className="w-6 h-6 text-indigo-400" size={24} />
-        <span>TeleVideo <span className="brand-badge">Studio</span></span>
+        <Video className="brand-icon" size={22} />
+        <span className="brand-title">TeleVideo <span className="brand-badge">Studio</span></span>
       </div>
 
-      {/* Aspect Ratio Selector Pills */}
-      <div className="aspect-pills hidden md:flex">
+      {/* Aspect Ratio Selector Pills - Desktop only */}
+      <div className="aspect-pills desktop-only">
         <button
           className={`aspect-pill ${aspectRatio === '9:16' ? 'active' : ''}`}
           onClick={() => setAspectRatio('9:16')}
@@ -32,20 +32,22 @@ export default function Navbar({ onOpenPresets, onExport, isExporting, isRecordi
       </div>
 
       <div className="nav-actions">
-        <button className="btn btn-secondary btn-sm" onClick={onOpenPresets}>
+        <button className="btn btn-secondary btn-sm nav-btn" onClick={onOpenPresets} title="Presets">
           <Layers size={16} />
-          <span>Presets</span>
+          <span className="btn-text">Presets</span>
         </button>
 
         <button 
-          className="btn btn-accent btn-sm"
+          className="btn btn-accent btn-sm nav-btn export-btn"
           onClick={onExport}
           disabled={isExporting || isRecording}
+          title="Export Video"
         >
           <Download size={16} />
-          <span>{isExporting ? 'Exporting Video...' : 'Export Video'}</span>
+          <span className="btn-text">{isExporting ? 'Exporting...' : 'Export Video'}</span>
         </button>
       </div>
     </header>
   );
 }
+
