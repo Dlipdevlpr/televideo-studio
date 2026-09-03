@@ -55,10 +55,9 @@ export class VideoExporter {
     this.recordedChunks = [];
     this.startTime = Date.now();
 
-    // captureStream(0) = capture a frame every time the canvas is drawn.
-    // This avoids timer drift between rAF and captureStream's internal clock
-    // which was causing duplicate/frozen frames in the exported video.
-    const canvasStream = this.canvas.captureStream(0);
+    // captureStream(60) to match the 60fps requestAnimationFrame loop.
+    // Using 0 is unreliable on some Android WebViews and causes complete freezes.
+    const canvasStream = this.canvas.captureStream(60);
     const combinedTracks = [...canvasStream.getVideoTracks()];
 
     // Add audio track if provided and active
@@ -108,10 +107,9 @@ export class VideoExporter {
       }
     };
 
-    // No timeslice arg = encoder batches data internally and only flushes
-    // on requestData()/stop(). This prevents the 100ms flush interrupts
-    // that were stealing main-thread time and causing micro-stutters.
-    this.mediaRecorder.start();
+    // Use a 250ms timeslice to flush data periodically. No timeslice can
+    // cause memory buildup or cause the encoder to stall on mobile devices.
+    this.mediaRecorder.start(250);
     this.isRecording = true;
   }
 
