@@ -1,8 +1,20 @@
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+
 /**
- * TeleVideo Studio - MediaRecorder Video Exporter
- * Captures clean 60FPS Canvas stream into uncorrupted WebM/MP4 video files
- * that open instantly in Microsoft Edge, Google Chrome, VLC, MPC-HC, & Mobile Players.
+ * Converts a Blob to a base64 Data URL string
  */
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      resolve(reader.result);
+    };
+    reader.readAsDataURL(blob);
+  });
+}
 
 export class VideoExporter {
   constructor(canvasElement) {
@@ -72,28 +84,69 @@ export class VideoExporter {
         return;
       }
 
-      this.mediaRecorder.onstop = () => {
+      this.mediaRecorder.onstop = async () => {
         this.isRecording = false;
         const mime = this.mediaRecorder.mimeType || 'video/webm';
         const ext = this.fileExtension || (mime.includes('mp4') ? 'mp4' : 'webm');
-        const filename = `${filenamePrefix}.${ext}`;
+        const filename = `${filenamePrefix}_${Date.now()}.${ext}`;
 
         // Create clean uncorrupted video blob
         const blob = new Blob(this.recordedChunks, { type: mime });
         
-        // Trigger browser file download
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
+        if (Capacitor.isNativePlatform()) {
+          try {
+            const base64Data = await blobToBase64(blob);
 
-        setTimeout(() => {
-          document.body.removeChild(a);
-          window.URL.revokeObjectURL(url);
-        }, 200);
+            // Write video file to native device storage
+            let fileUri = null;
+            try {
+              const res = await Filesystem.writeFile({
+                path: filename,
+                data: base64Data,
+                directory: Directory.Documents,
+                recursive: true
+              });
+              fileUri = res.uri;
+            } catch (err) {
+              const fallback = await Filesystem.writeFile({
+                path: filename,
+                data: base64Data,
+                directory: Directory.Cache
+              });
+              fileUri = fallback.uri;
+            }
+
+            // Trigger native Android Share/Save sheet
+            if (fileUri) {
+              try {
+                await Share.share({
+                  title: 'TeleVideo Studio Reel',
+                  text: 'Save or share your exported teleprompter reel:',
+                  url: fileUri,
+                  dialogTitle: 'Save Video or Share'
+                });
+              } catch (shareErr) {
+                console.warn('Native share dialog error:', shareErr);
+              }
+            }
+          } catch (nativeErr) {
+            console.error('Failed to save natively via Capacitor:', nativeErr);
+          }
+        } else {
+          // Standard browser file download for desktop
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+
+          setTimeout(() => {
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+          }, 200);
+        }
 
         resolve(blob);
       };
