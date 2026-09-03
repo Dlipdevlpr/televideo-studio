@@ -60,7 +60,10 @@ export default function VideoCanvasPreview({
   const startTimeRef = useRef(null);
   const videoExporterRef = useRef(null);
   const progressRef = useRef(0);
+  const currentTimeRef = useRef(0);
+  const totalDurationRef = useRef(15);
   const isPlayingRef = useRef(false);
+  const lastUiUpdateRef = useRef(0);
 
   useEffect(() => {
     progressRef.current = progress;
@@ -75,6 +78,7 @@ export default function VideoCanvasPreview({
     const words = scriptText.trim().split(/\s+/).filter(w => w.length > 0).length;
     const durationSeconds = Math.max(5, Math.ceil((words / speedWpm) * 60));
     setTotalDuration(durationSeconds);
+    totalDurationRef.current = durationSeconds;
   }, [scriptText, speedWpm]);
 
   // Set Canvas internal dimensions based on aspect ratio
@@ -105,6 +109,7 @@ export default function VideoCanvasPreview({
   };
 
   // Render loop
+  // High-Performance 60FPS Render loop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -112,20 +117,26 @@ export default function VideoCanvasPreview({
     const ctx = canvas.getContext('2d');
 
     const render = (timestamp) => {
-      if (isPlaying) {
-        if (!startTimeRef.current) startTimeRef.current = timestamp - currentTime * 1000;
+      if (isPlayingRef.current) {
+        if (!startTimeRef.current) {
+          startTimeRef.current = timestamp - currentTimeRef.current * 1000;
+        }
         const elapsed = (timestamp - startTimeRef.current) / 1000;
-        setCurrentTime(elapsed);
+        currentTimeRef.current = elapsed;
 
-        const newProgress = Math.min(1, elapsed / totalDuration);
-        setProgress(newProgress);
+        const currentProg = Math.min(1, elapsed / (totalDurationRef.current || 15));
+        progressRef.current = currentProg;
 
-        if (newProgress >= 1) {
+        // Throttled UI state updates to avoid thrashing React main thread
+        if (timestamp - lastUiUpdateRef.current > 150 || currentProg >= 1) {
+          lastUiUpdateRef.current = timestamp;
+          setCurrentTime(elapsed);
+          setProgress(currentProg);
+        }
+
+        if (currentProg >= 1) {
           setIsPlaying(false);
           speechManager.stop();
-          if (audioRef.current) {
-            audioRef.current.pause();
-          }
         }
       }
 
@@ -133,8 +144,8 @@ export default function VideoCanvasPreview({
         width: canvasWidth,
         height: canvasHeight,
         scriptText,
-        progress,
-        currentTime,
+        progress: progressRef.current,
+        currentTime: currentTimeRef.current,
         aspectRatio,
         scrollMode,
         fontFamily,
@@ -169,9 +180,6 @@ export default function VideoCanvasPreview({
     };
   }, [
     isPlaying,
-    currentTime,
-    progress,
-    totalDuration,
     canvasWidth,
     canvasHeight,
     scriptText,
@@ -202,14 +210,16 @@ export default function VideoCanvasPreview({
     if (isPlaying) {
       setIsPlaying(false);
       speechManager.pause();
-      if (audioRef.current) audioRef.current.pause();
     } else {
-      if (progress >= 1) {
+      if (progressRef.current >= 1) {
+        progressRef.current = 0;
+        currentTimeRef.current = 0;
         setProgress(0);
         setCurrentTime(0);
         startTimeRef.current = null;
       }
       setIsPlaying(true);
+      startTimeRef.current = performance.now() - currentTimeRef.current * 1000;
 
       // Trigger Voiceover audio if enabled
       if (audioMode === 'tts') {
@@ -225,7 +235,7 @@ export default function VideoCanvasPreview({
           if (!speechManager.customAudioBuffer) {
             await speechManager.loadCustomAudioFile(customAudioFile);
           }
-          speechManager.playCustomAudio(currentTime);
+          speechManager.playCustomAudio(currentTimeRef.current);
         });
       }
     }
@@ -233,6 +243,8 @@ export default function VideoCanvasPreview({
 
   const handleRestart = () => {
     setIsPlaying(false);
+    currentTimeRef.current = 0;
+    progressRef.current = 0;
     setProgress(0);
     setCurrentTime(0);
     startTimeRef.current = null;
@@ -241,11 +253,13 @@ export default function VideoCanvasPreview({
 
   const handleSeek = (e) => {
     const newProgress = parseFloat(e.target.value);
+    progressRef.current = newProgress;
     setProgress(newProgress);
-    const newTime = newProgress * totalDuration;
+    const newTime = newProgress * (totalDurationRef.current || 15);
+    currentTimeRef.current = newTime;
     setCurrentTime(newTime);
     startTimeRef.current = performance.now() - newTime * 1000;
-    if (isPlaying && audioMode === 'upload' && customAudioFile) {
+    if (isPlayingRef.current && audioMode === 'upload' && customAudioFile) {
       speechManager.playCustomAudio(newTime);
     }
   };
@@ -286,8 +300,10 @@ export default function VideoCanvasPreview({
       await videoExporterRef.current.startRecording(audioStream);
 
       // Trigger playback animation & play custom audio synchronously
-      setIsPlaying(true);
+      currentTimeRef.current = 0;
+      progressRef.current = 0;
       startTimeRef.current = performance.now();
+      setIsPlaying(true);
 
       if (audioMode === 'upload') {
         speechManager.playCustomAudio(0);
