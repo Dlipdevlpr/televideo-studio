@@ -16,7 +16,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Set up JDK 17
@@ -38,7 +38,9 @@ jobs:
 
       - name: Build Debug APK
         working-directory: ./android
-        run: ./gradlew assembleDebug --stacktrace
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --stacktrace
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
