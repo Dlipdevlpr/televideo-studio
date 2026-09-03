@@ -44,18 +44,18 @@ export default function VideoCanvasPreview({
   selectedTtsLines
 }) {
   const canvasRef = useRef(null);
-  const audioRef = useRef(null);
   
+  // ── React state (for UI display only) ────────────────────────────
   const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState(0); // 0 to 1
-  const [currentTime, setCurrentTime] = useState(0); // in seconds
-  const [totalDuration, setTotalDuration] = useState(15); // in seconds
+  const [progress, setProgress] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [totalDuration, setTotalDuration] = useState(15);
   const [isRecordingVideo, setIsRecordingVideo] = useState(false);
   const [exportPercent, setExportPercent] = useState(0);
   const [lastExportResult, setLastExportResult] = useState(null);
   const [showExportModal, setShowExportModal] = useState(false);
 
-  // Refs for animation & closure-safe values
+  // ── Animation refs (the REAL source of truth for the render loop) ─
   const animFrameIdRef = useRef(null);
   const startTimeRef = useRef(null);
   const videoExporterRef = useRef(null);
@@ -65,10 +65,12 @@ export default function VideoCanvasPreview({
   const isPlayingRef = useRef(false);
   const lastUiUpdateRef = useRef(0);
 
-  useEffect(() => {
-    progressRef.current = progress;
-  }, [progress]);
+  // This ref holds ALL canvas drawing config. Updated synchronously on
+  // every render (cheap pointer swap), but the animation loop reads it
+  // without any useEffect dependency — so the loop NEVER restarts.
+  const renderConfigRef = useRef({});
 
+  // Keep isPlayingRef in sync
   useEffect(() => {
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
@@ -81,42 +83,53 @@ export default function VideoCanvasPreview({
     totalDurationRef.current = durationSeconds;
   }, [scriptText, speedWpm]);
 
-  // Set Canvas internal dimensions based on aspect ratio
+  // Canvas pixel dimensions
   const getCanvasDimensions = () => {
     if (aspectRatio === '16:9') return { width: 1280, height: 720 };
     if (aspectRatio === '1:1') return { width: 1080, height: 1080 };
-    return { width: 720, height: 1280 }; // Default 9:16 Shorts/Reels
+    return { width: 720, height: 1280 };
   };
-
   const { width: canvasWidth, height: canvasHeight } = getCanvasDimensions();
 
-  // Helper to extract exact text for TTS based on scope
+  // Sync render config ref on every React render (no useEffect needed —
+  // this runs during the render phase itself, before paint).
+  renderConfigRef.current = {
+    canvasWidth, canvasHeight, scriptText, aspectRatio, scrollMode,
+    fontFamily, fontSize, textColor, highlightColor, activeLineBg,
+    boxOpacity, textPosition, bgTheme, solidBgColor, showProgressBar,
+    showAudioVisualizer, watermarkText, showWatermark, showReadingBox,
+    boxScale, boxWidthPercent, boxBorderRadius, boxBorderWidth
+  };
+
+  // TTS text helper
   const getTtsTextToSpeak = () => {
     const lines = scriptText.split('\n').filter(l => l.trim().length > 0);
     if (lines.length === 0) return '';
-
-    if (ttsRangeMode === 'first-line') {
-      return lines[0] || '';
-    } else if (ttsRangeMode === 'first-two') {
-      return lines.slice(0, 2).join('. ');
-    } else if (ttsRangeMode === 'custom') {
-      const selectedText = lines
-        .filter((_, idx) => selectedTtsLines.has(idx))
-        .join('. ');
-      return selectedText || lines[0] || '';
+    if (ttsRangeMode === 'first-line') return lines[0] || '';
+    if (ttsRangeMode === 'first-two') return lines.slice(0, 2).join('. ');
+    if (ttsRangeMode === 'custom') {
+      const sel = lines.filter((_, i) => selectedTtsLines.has(i)).join('. ');
+      return sel || lines[0] || '';
     }
-    return scriptText; // 'full'
+    return scriptText;
   };
 
-  // Render loop
-  // High-Performance 60FPS Render loop
+  // ═══════════════════════════════════════════════════════════════════
+  // STABLE 60 FPS RENDER LOOP — runs once on mount, never restarts.
+  // ALL dynamic values are read from refs so React re-renders (state
+  // changes, prop changes) cannot interrupt the requestAnimationFrame
+  // chain. This guarantees the canvas keeps drawing smooth frames even
+  // while MediaRecorder is capturing for video export.
+  // ═══════════════════════════════════════════════════════════════════
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
+    let rafId;
 
-    const render = (timestamp) => {
+    const tick = (timestamp) => {
+      // 1. Advance playback time
       if (isPlayingRef.current) {
         if (!startTimeRef.current) {
           startTimeRef.current = timestamp - currentTimeRef.current * 1000;
@@ -124,90 +137,71 @@ export default function VideoCanvasPreview({
         const elapsed = (timestamp - startTimeRef.current) / 1000;
         currentTimeRef.current = elapsed;
 
-        const currentProg = Math.min(1, elapsed / (totalDurationRef.current || 15));
-        progressRef.current = currentProg;
+        const dur = totalDurationRef.current || 15;
+        const prog = Math.min(1, elapsed / dur);
+        progressRef.current = prog;
 
-        // Throttled UI state updates to avoid thrashing React main thread
-        if (timestamp - lastUiUpdateRef.current > 150 || currentProg >= 1) {
+        // Update React UI at ~6 Hz (or at completion)
+        if (timestamp - lastUiUpdateRef.current > 160 || prog >= 1) {
           lastUiUpdateRef.current = timestamp;
           setCurrentTime(elapsed);
-          setProgress(currentProg);
+          setProgress(prog);
         }
 
-        if (currentProg >= 1) {
+        if (prog >= 1) {
+          isPlayingRef.current = false;
           setIsPlaying(false);
           speechManager.stop();
         }
       }
 
-      renderTeleprompterCanvas(ctx, {
-        width: canvasWidth,
-        height: canvasHeight,
-        scriptText,
-        progress: progressRef.current,
-        currentTime: currentTimeRef.current,
-        aspectRatio,
-        scrollMode,
-        fontFamily,
-        fontSize,
-        textColor,
-        highlightColor,
-        activeLineBg,
-        boxOpacity,
-        textPosition,
-        bgTheme,
-        solidBgColor,
-        showProgressBar,
-        showAudioVisualizer,
-        watermarkText,
-        showWatermark,
-        showReadingBox,
-        boxScale,
-        boxWidthPercent,
-        boxBorderRadius,
-        boxBorderWidth
-      });
+      // 2. Paint the canvas using latest config
+      const c = renderConfigRef.current;
+      if (c.canvasWidth) {
+        // Resize canvas if aspect ratio changed
+        if (canvas.width !== c.canvasWidth) canvas.width = c.canvasWidth;
+        if (canvas.height !== c.canvasHeight) canvas.height = c.canvasHeight;
 
-      animFrameIdRef.current = requestAnimationFrame(render);
-    };
-
-    animFrameIdRef.current = requestAnimationFrame(render);
-
-    return () => {
-      if (animFrameIdRef.current) {
-        cancelAnimationFrame(animFrameIdRef.current);
+        renderTeleprompterCanvas(ctx, {
+          width: c.canvasWidth,
+          height: c.canvasHeight,
+          scriptText: c.scriptText,
+          progress: progressRef.current,
+          currentTime: currentTimeRef.current,
+          aspectRatio: c.aspectRatio,
+          scrollMode: c.scrollMode,
+          fontFamily: c.fontFamily,
+          fontSize: c.fontSize,
+          textColor: c.textColor,
+          highlightColor: c.highlightColor,
+          activeLineBg: c.activeLineBg,
+          boxOpacity: c.boxOpacity,
+          textPosition: c.textPosition,
+          bgTheme: c.bgTheme,
+          solidBgColor: c.solidBgColor,
+          showProgressBar: c.showProgressBar,
+          showAudioVisualizer: c.showAudioVisualizer,
+          watermarkText: c.watermarkText,
+          showWatermark: c.showWatermark,
+          showReadingBox: c.showReadingBox,
+          boxScale: c.boxScale,
+          boxWidthPercent: c.boxWidthPercent,
+          boxBorderRadius: c.boxBorderRadius,
+          boxBorderWidth: c.boxBorderWidth
+        });
       }
-    };
-  }, [
-    isPlaying,
-    canvasWidth,
-    canvasHeight,
-    scriptText,
-    aspectRatio,
-    scrollMode,
-    fontFamily,
-    fontSize,
-    textColor,
-    highlightColor,
-    activeLineBg,
-    boxOpacity,
-    textPosition,
-    bgTheme,
-    solidBgColor,
-    showProgressBar,
-    showAudioVisualizer,
-    watermarkText,
-    showWatermark,
-    showReadingBox,
-    boxScale,
-    boxWidthPercent,
-    boxBorderRadius,
-    boxBorderWidth
-  ]);
 
-  // Handle Play/Pause
+      rafId = requestAnimationFrame(tick);
+    };
+
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, []); // ← empty deps: mount once, never restart
+
+  // ── Playback Controls ────────────────────────────────────────────
   const togglePlay = () => {
-    if (isPlaying) {
+    if (isPlayingRef.current) {
+      isPlayingRef.current = false;
       setIsPlaying(false);
       speechManager.pause();
     } else {
@@ -218,14 +212,14 @@ export default function VideoCanvasPreview({
         setCurrentTime(0);
         startTimeRef.current = null;
       }
-      setIsPlaying(true);
       startTimeRef.current = performance.now() - currentTimeRef.current * 1000;
+      isPlayingRef.current = true;
+      setIsPlaying(true);
 
-      // Trigger Voiceover audio if enabled
       if (audioMode === 'tts') {
-        const textToSpeak = getTtsTextToSpeak();
-        if (textToSpeak) {
-          speechManager.speak(textToSpeak, {
+        const text = getTtsTextToSpeak();
+        if (text) {
+          speechManager.speak(text, {
             voiceIndex: selectedVoiceIndex,
             rate: speechRate
           });
@@ -242,6 +236,7 @@ export default function VideoCanvasPreview({
   };
 
   const handleRestart = () => {
+    isPlayingRef.current = false;
     setIsPlaying(false);
     currentTimeRef.current = 0;
     progressRef.current = 0;
@@ -252,19 +247,19 @@ export default function VideoCanvasPreview({
   };
 
   const handleSeek = (e) => {
-    const newProgress = parseFloat(e.target.value);
-    progressRef.current = newProgress;
-    setProgress(newProgress);
-    const newTime = newProgress * (totalDurationRef.current || 15);
-    currentTimeRef.current = newTime;
-    setCurrentTime(newTime);
-    startTimeRef.current = performance.now() - newTime * 1000;
+    const val = parseFloat(e.target.value);
+    progressRef.current = val;
+    setProgress(val);
+    const t = val * (totalDurationRef.current || 15);
+    currentTimeRef.current = t;
+    setCurrentTime(t);
+    startTimeRef.current = performance.now() - t * 1000;
     if (isPlayingRef.current && audioMode === 'upload' && customAudioFile) {
-      speechManager.playCustomAudio(newTime);
+      speechManager.playCustomAudio(t);
     }
   };
 
-  // Video Export Handler with Audio Multiplexing for Custom Uploaded Audio & TTS
+  // ── Video Export ─────────────────────────────────────────────────
   const handleExportVideo = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -274,35 +269,31 @@ export default function VideoCanvasPreview({
       setIsRecordingVideo(true);
       setExportPercent(0);
 
-      // Reset state & restart cleanly
+      // Reset cleanly
       handleRestart();
-      progressRef.current = 0;
       await new Promise(r => setTimeout(r, 250));
 
       videoExporterRef.current = new VideoExporter(canvas);
 
       let audioStream = null;
 
-      // Case 1: Custom uploaded audio track (MP3/WAV)
       if (audioMode === 'upload' && customAudioFile) {
         await speechManager.loadCustomAudioFile(customAudioFile);
         audioStream = speechManager.getAudioStream();
-      } 
-      // Case 2: AI Voice (TTS)
-      else if (audioMode === 'tts') {
-        const textToSpeak = getTtsTextToSpeak();
-        if (textToSpeak) {
-          audioStream = await speechManager.getExportAudioStream(textToSpeak, selectedVoiceIndex);
+      } else if (audioMode === 'tts') {
+        const text = getTtsTextToSpeak();
+        if (text) {
+          audioStream = await speechManager.getExportAudioStream(text, selectedVoiceIndex);
         }
       }
 
-      // Start recording with audio stream
       await videoExporterRef.current.startRecording(audioStream);
 
-      // Trigger playback animation & play custom audio synchronously
+      // Start playback (ref-first so the render loop picks it up immediately)
       currentTimeRef.current = 0;
       progressRef.current = 0;
       startTimeRef.current = performance.now();
+      isPlayingRef.current = true;
       setIsPlaying(true);
 
       if (audioMode === 'upload') {
@@ -314,10 +305,9 @@ export default function VideoCanvasPreview({
 
       const exportTimer = setInterval(async () => {
         const elapsed = Date.now() - startExportTime;
-        const currentPct = Math.min(100, Math.floor((elapsed / targetDurationMs) * 100));
-        setExportPercent(currentPct);
+        const pct = Math.min(100, Math.floor((elapsed / targetDurationMs) * 100));
+        setExportPercent(pct);
 
-        // Record for the complete duration of the script reel
         if (elapsed >= targetDurationMs) {
           clearInterval(exportTimer);
 
@@ -326,11 +316,7 @@ export default function VideoCanvasPreview({
               const res = await videoExporterRef.current.stopRecordingAndDownload('teleprompt_reel', totalDuration);
               setLastExportResult(res);
               setShowExportModal(true);
-              confetti({
-                particleCount: 90,
-                spread: 70,
-                origin: { y: 0.6 }
-              });
+              confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
             }
           } catch (exportErr) {
             console.error('Export finalization error:', exportErr);
@@ -341,7 +327,6 @@ export default function VideoCanvasPreview({
           }
         }
       }, 150);
-
     } catch (err) {
       console.error('Video export error:', err);
       setIsExporting(false);
@@ -355,6 +340,7 @@ export default function VideoCanvasPreview({
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
+  // ── JSX ──────────────────────────────────────────────────────────
   return (
     <div className="canvas-stage flex-1">
       <div className="phone-mockup-wrapper">
