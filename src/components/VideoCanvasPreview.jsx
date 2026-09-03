@@ -63,6 +63,7 @@ export default function VideoCanvasPreview({
   const currentTimeRef = useRef(0);
   const totalDurationRef = useRef(15);
   const isPlayingRef = useRef(false);
+  const isRecordingRef = useRef(false);
   const lastUiUpdateRef = useRef(0);
 
   // This ref holds ALL canvas drawing config. Updated synchronously on
@@ -141,11 +142,14 @@ export default function VideoCanvasPreview({
         const prog = Math.min(1, elapsed / dur);
         progressRef.current = prog;
 
-        // Update React UI at ~6 Hz (or at completion)
-        if (timestamp - lastUiUpdateRef.current > 160 || prog >= 1) {
-          lastUiUpdateRef.current = timestamp;
-          setCurrentTime(elapsed);
-          setProgress(prog);
+        // Update React UI at ~6 Hz — but SKIP entirely during recording
+        // to keep the main thread 100% free for canvas drawing.
+        if (!isRecordingRef.current) {
+          if (timestamp - lastUiUpdateRef.current > 160 || prog >= 1) {
+            lastUiUpdateRef.current = timestamp;
+            setCurrentTime(elapsed);
+            setProgress(prog);
+          }
         }
 
         if (prog >= 1) {
@@ -268,6 +272,7 @@ export default function VideoCanvasPreview({
       setIsExporting(true);
       setIsRecordingVideo(true);
       setExportPercent(0);
+      isRecordingRef.current = true;
 
       // Reset cleanly
       handleRestart();
@@ -306,7 +311,8 @@ export default function VideoCanvasPreview({
       const exportTimer = setInterval(async () => {
         const elapsed = Date.now() - startExportTime;
         const pct = Math.min(100, Math.floor((elapsed / targetDurationMs) * 100));
-        setExportPercent(pct);
+        // Use requestIdleCallback or rAF to batch the UI update outside canvas work
+        requestAnimationFrame(() => setExportPercent(pct));
 
         if (elapsed >= targetDurationMs) {
           clearInterval(exportTimer);
@@ -321,12 +327,13 @@ export default function VideoCanvasPreview({
           } catch (exportErr) {
             console.error('Export finalization error:', exportErr);
           } finally {
+            isRecordingRef.current = false;
             setIsRecordingVideo(false);
             setIsExporting(false);
             handleRestart();
           }
         }
-      }, 150);
+      }, 500);
     } catch (err) {
       console.error('Video export error:', err);
       setIsExporting(false);
