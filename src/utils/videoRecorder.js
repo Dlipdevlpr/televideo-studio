@@ -4,14 +4,18 @@ import { Share } from '@capacitor/share';
 import fixWebmDuration from 'fix-webm-duration';
 
 /**
- * Converts a Blob to a base64 Data URL string
+ * Converts a Blob to a raw base64 string (without data URL header)
  */
 function blobToBase64(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = reject;
     reader.onload = () => {
-      resolve(reader.result);
+      const dataUrl = reader.result;
+      const base64 = typeof dataUrl === 'string' && dataUrl.includes(',')
+        ? dataUrl.split(',')[1]
+        : dataUrl;
+      resolve(base64);
     };
     reader.readAsDataURL(blob);
   });
@@ -23,7 +27,7 @@ export class VideoExporter {
     this.mediaRecorder = null;
     this.recordedChunks = [];
     this.isRecording = false;
-    this.fileExtension = 'mp4';
+    this.fileExtension = 'webm';
     this.stream = null;
     this.startTime = null;
   }
@@ -31,7 +35,9 @@ export class VideoExporter {
   cleanupStream() {
     if (this.stream) {
       try {
-        this.stream.getTracks().forEach((track) => {
+        // Only stop video tracks created from canvas.captureStream!
+        // Never stop external audio tracks so the audio context destination stays alive.
+        this.stream.getVideoTracks().forEach((track) => {
           track.stop();
         });
       } catch (e) {
@@ -46,7 +52,7 @@ export class VideoExporter {
       throw new Error('Canvas element is required for video export.');
     }
 
-    // Always release any previously active stream tracks
+    // Always release any previously active video stream tracks
     this.cleanupStream();
 
     this.recordedChunks = [];
@@ -66,15 +72,13 @@ export class VideoExporter {
 
     this.stream = new MediaStream(combinedTracks);
 
-    // Prioritize MP4 container first for universal Android & iOS playback
+    // Prioritize formats with OPUS audio so microphone/voiceover is reliably encoded
     const mimeTypesToTry = [
-      'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
-      'video/mp4;codecs=avc1',
-      'video/mp4',
-      'video/webm;codecs=vp9,opus',
       'video/webm;codecs=vp8,opus',
-      'video/webm;codecs=vp8',
-      'video/webm'
+      'video/webm;codecs=vp9,opus',
+      'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+      'video/webm',
+      'video/mp4'
     ];
 
     let selectedMimeType = '';

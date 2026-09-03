@@ -53,8 +53,30 @@ class SpeechManager {
     }
   }
 
+  async ensureAudioContext() {
+    this.initAudioContext();
+    if (this.audioCtx && this.audioCtx.state === 'suspended') {
+      try {
+        await this.audioCtx.resume();
+      } catch (e) {
+        console.warn('AudioContext resume error:', e);
+      }
+    }
+    return this.audioCtx;
+  }
+
   getAudioStream() {
     this.initAudioContext();
+    if (
+      !this.destinationNode ||
+      !this.destinationNode.stream ||
+      !this.destinationNode.stream.getAudioTracks()[0] ||
+      this.destinationNode.stream.getAudioTracks()[0].readyState === 'ended'
+    ) {
+      if (this.audioCtx) {
+        this.destinationNode = this.audioCtx.createMediaStreamDestination();
+      }
+    }
     return this.destinationNode ? this.destinationNode.stream : null;
   }
 

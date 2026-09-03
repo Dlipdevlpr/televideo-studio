@@ -270,9 +270,11 @@ export default function VideoCanvasPreview({
 
       // Case 1: Custom uploaded audio track (MP3/WAV)
       if (audioMode === 'upload' && customAudioFile) {
+        await speechManager.ensureAudioContext();
         if (!audioRef.current) {
-          audioRef.current = new Audio(URL.createObjectURL(customAudioFile));
+          audioRef.current = new Audio();
         }
+        audioRef.current.src = URL.createObjectURL(customAudioFile);
         audioRef.current.currentTime = 0;
         speechManager.connectAudioElement(audioRef.current);
         audioStream = speechManager.getAudioStream();
@@ -281,6 +283,7 @@ export default function VideoCanvasPreview({
       else if (audioMode === 'tts') {
         const textToSpeak = getTtsTextToSpeak();
         if (textToSpeak) {
+          await speechManager.ensureAudioContext();
           audioStream = await speechManager.getExportAudioStream(textToSpeak, selectedVoiceIndex);
         }
       }
@@ -293,7 +296,11 @@ export default function VideoCanvasPreview({
       startTimeRef.current = performance.now();
 
       if (audioMode === 'upload' && audioRef.current) {
-        audioRef.current.play();
+        try {
+          await audioRef.current.play();
+        } catch (playErr) {
+          console.warn('Audio play error during export:', playErr);
+        }
       }
 
       const startExportTime = Date.now();
