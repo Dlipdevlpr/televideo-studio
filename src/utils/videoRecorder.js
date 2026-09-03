@@ -55,9 +55,10 @@ export class VideoExporter {
     this.recordedChunks = [];
     this.startTime = Date.now();
 
-    // captureStream(60) to match the 60fps requestAnimationFrame loop.
-    // Using 0 is unreliable on some Android WebViews and causes complete freezes.
-    const canvasStream = this.canvas.captureStream(60);
+    // captureStream(30) reduces the workload on the Android hardware/software encoder
+    // by exactly half compared to 60fps, preventing the encoder from getting
+    // overwhelmed and freezing in the middle of a recording.
+    const canvasStream = this.canvas.captureStream(30);
     const combinedTracks = [...canvasStream.getVideoTracks()];
 
     // Add audio track if provided and active

@@ -133,13 +133,15 @@ export default function VideoCanvasPreview({
     const ctx = canvas.getContext('2d');
     let rafId;
 
-    const tick = (timestamp) => {
+    const tick = () => {
+      const currentNow = performance.now();
+      
       // 1. Advance playback time
       if (isPlayingRef.current) {
         if (!startTimeRef.current) {
-          startTimeRef.current = timestamp - currentTimeRef.current * 1000;
+          startTimeRef.current = currentNow - currentTimeRef.current * 1000;
         }
-        const elapsed = (timestamp - startTimeRef.current) / 1000;
+        const elapsed = (currentNow - startTimeRef.current) / 1000;
         currentTimeRef.current = elapsed;
 
         const dur = totalDurationRef.current || 15;
@@ -149,8 +151,8 @@ export default function VideoCanvasPreview({
         // Direct DOM updates bypass React's virtual DOM entirely.
         // This is extremely fast (sub-millisecond) and keeps the DOM active so
         // Android WebView doesn't aggressively throttle requestAnimationFrame.
-        if (timestamp - lastUiUpdateRef.current > 33 || prog >= 1) { // ~30 FPS UI updates
-          lastUiUpdateRef.current = timestamp;
+        if (currentNow - lastUiUpdateRef.current > 33 || prog >= 1) { // ~30 FPS UI updates
+          lastUiUpdateRef.current = currentNow;
           if (timeDisplayRef.current) timeDisplayRef.current.innerText = formatTime(elapsed);
           if (progressBarRef.current) progressBarRef.current.value = prog;
           
