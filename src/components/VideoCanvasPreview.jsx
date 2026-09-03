@@ -1,9 +1,10 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Play, Pause, RotateCcw, Download, Radio, Volume2 } from 'lucide-react';
+import { Play, Pause, RotateCcw, Download, Radio, Volume2, Share2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { renderTeleprompterCanvas } from '../utils/teleprompterEngine';
 import { speechManager } from '../utils/speechManager';
 import { VideoExporter } from '../utils/videoRecorder';
+import { Share } from '@capacitor/share';
 
 export default function VideoCanvasPreview({
   scriptText,
@@ -51,6 +52,7 @@ export default function VideoCanvasPreview({
   const [totalDuration, setTotalDuration] = useState(15); // in seconds
   const [isRecordingVideo, setIsRecordingVideo] = useState(false);
   const [exportPercent, setExportPercent] = useState(0);
+  const [lastExportResult, setLastExportResult] = useState(null);
 
   // Refs for animation & closure-safe values
   const animFrameIdRef = useRef(null);
@@ -306,17 +308,22 @@ export default function VideoCanvasPreview({
         if (elapsed >= targetDurationMs) {
           clearInterval(exportTimer);
 
-          if (videoExporterRef.current && videoExporterRef.current.isRecording) {
-            await videoExporterRef.current.stopRecordingAndDownload('teleprompt_reel');
+          try {
+            if (videoExporterRef.current && videoExporterRef.current.isRecording) {
+              const res = await videoExporterRef.current.stopRecordingAndDownload('teleprompt_reel', totalDuration);
+              setLastExportResult(res);
+              confetti({
+                particleCount: 90,
+                spread: 70,
+                origin: { y: 0.6 }
+              });
+            }
+          } catch (exportErr) {
+            console.error('Export finalization error:', exportErr);
+          } finally {
             setIsRecordingVideo(false);
             setIsExporting(false);
             handleRestart();
-
-            confetti({
-              particleCount: 90,
-              spread: 70,
-              origin: { y: 0.6 }
-            });
           }
         }
       }, 150);
@@ -435,6 +442,30 @@ export default function VideoCanvasPreview({
             <span className="btn-text">{isExporting ? `${exportPercent}%` : 'Export'}</span>
           </button>
         </div>
+
+        {lastExportResult?.uri && (
+          <div className="last-export-card">
+            <span className="last-export-text">✅ Video Ready!</span>
+            <button
+              className="btn btn-sm btn-primary save-again-btn"
+              onClick={async () => {
+                try {
+                  await Share.share({
+                    title: 'TeleVideo Studio Video',
+                    text: 'Your teleprompter reel is ready!',
+                    url: lastExportResult.uri,
+                    dialogTitle: 'Save Video to Phone or Share'
+                  });
+                } catch (e) {
+                  console.warn(e);
+                }
+              }}
+            >
+              <Share2 size={14} />
+              <span>Save / Share Again</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
+import fixWebmDuration from 'fix-webm-duration';
 
 /**
  * Converts a Blob to a base64 Data URL string
@@ -22,7 +23,22 @@ export class VideoExporter {
     this.mediaRecorder = null;
     this.recordedChunks = [];
     this.isRecording = false;
-    this.fileExtension = 'webm';
+    this.fileExtension = 'mp4';
+    this.stream = null;
+    this.startTime = null;
+  }
+
+  cleanupStream() {
+    if (this.stream) {
+      try {
+        this.stream.getTracks().forEach((track) => {
+          track.stop();
+        });
+      } catch (e) {
+        console.warn('Track cleanup error:', e);
+      }
+      this.stream = null;
+    }
   }
 
   async startRecording(audioStream = null) {
@@ -30,10 +46,14 @@ export class VideoExporter {
       throw new Error('Canvas element is required for video export.');
     }
 
-    this.recordedChunks = [];
+    // Always release any previously active stream tracks
+    this.cleanupStream();
 
-    // Capture clean 60FPS video stream from canvas
-    const canvasStream = this.canvas.captureStream(60);
+    this.recordedChunks = [];
+    this.startTime = Date.now();
+
+    // 30 FPS is standard and lightweight for mobile hardware encoding
+    const canvasStream = this.canvas.captureStream(30);
     const combinedTracks = [...canvasStream.getVideoTracks()];
 
     // Add audio track if provided and active
@@ -44,28 +64,36 @@ export class VideoExporter {
       }
     }
 
-    const combinedStream = new MediaStream(combinedTracks);
+    this.stream = new MediaStream(combinedTracks);
 
-    // Standard supported mimeType
+    // Prioritize MP4 container first for universal Android & iOS playback
     const mimeTypesToTry = [
+      'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+      'video/mp4;codecs=avc1',
+      'video/mp4',
+      'video/webm;codecs=vp9,opus',
       'video/webm;codecs=vp8,opus',
       'video/webm;codecs=vp8',
-      'video/webm',
-      'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
-      'video/mp4'
+      'video/webm'
     ];
 
     let selectedMimeType = '';
     for (const type of mimeTypesToTry) {
-      if (MediaRecorder.isTypeSupported(type)) {
+      if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(type)) {
         selectedMimeType = type;
         this.fileExtension = type.includes('mp4') ? 'mp4' : 'webm';
         break;
       }
     }
 
-    const options = selectedMimeType ? { mimeType: selectedMimeType } : {};
-    this.mediaRecorder = new MediaRecorder(combinedStream, options);
+    const options = {
+      videoBitsPerSecond: 2500000 // 2.5 Mbps crisp mobile video
+    };
+    if (selectedMimeType) {
+      options.mimeType = selectedMimeType;
+    }
+
+    this.mediaRecorder = new MediaRecorder(this.stream, options);
 
     this.mediaRecorder.ondataavailable = (event) => {
       if (event.data && event.data.size > 0) {
@@ -77,81 +105,109 @@ export class VideoExporter {
     this.isRecording = true;
   }
 
-  stopRecordingAndDownload(filenamePrefix = 'teleprompt_reel') {
+  stopRecordingAndDownload(filenamePrefix = 'teleprompt_reel', totalDurationSec = 0) {
     return new Promise((resolve, reject) => {
       if (!this.mediaRecorder || !this.isRecording) {
+        this.cleanupStream();
         reject(new Error('No active recording found.'));
         return;
       }
 
-      this.mediaRecorder.onstop = async () => {
+      const recorder = this.mediaRecorder;
+      const durationMs = totalDurationSec > 0 ? totalDurationSec * 1000 : (Date.now() - (this.startTime || Date.now()));
+
+      recorder.onstop = async () => {
         this.isRecording = false;
-        const mime = this.mediaRecorder.mimeType || 'video/webm';
-        const ext = this.fileExtension || (mime.includes('mp4') ? 'mp4' : 'webm');
-        const filename = `${filenamePrefix}_${Date.now()}.${ext}`;
+        this.cleanupStream();
 
-        // Create clean uncorrupted video blob
-        const blob = new Blob(this.recordedChunks, { type: mime });
-        
-        if (Capacitor.isNativePlatform()) {
-          try {
-            const base64Data = await blobToBase64(blob);
+        try {
+          const mime = recorder.mimeType || (this.fileExtension === 'mp4' ? 'video/mp4' : 'video/webm');
+          const ext = this.fileExtension || (mime.includes('mp4') ? 'mp4' : 'webm');
+          const filename = `${filenamePrefix}_${Date.now()}.${ext}`;
 
-            // Write video file to native device storage
-            let fileUri = null;
+          const rawBlob = new Blob(this.recordedChunks, { type: mime });
+
+          // If WebM, patch missing duration/cues so Android player can seek and play
+          let finalBlob = rawBlob;
+          if (ext === 'webm') {
             try {
-              const res = await Filesystem.writeFile({
-                path: filename,
-                data: base64Data,
-                directory: Directory.Documents,
-                recursive: true
-              });
-              fileUri = res.uri;
-            } catch (err) {
-              const fallback = await Filesystem.writeFile({
-                path: filename,
-                data: base64Data,
-                directory: Directory.Cache
-              });
-              fileUri = fallback.uri;
-            }
-
-            // Trigger native Android Share/Save sheet
-            if (fileUri) {
-              try {
-                await Share.share({
-                  title: 'TeleVideo Studio Reel',
-                  text: 'Save or share your exported teleprompter reel:',
-                  url: fileUri,
-                  dialogTitle: 'Save Video or Share'
+              finalBlob = await new Promise((res) => {
+                fixWebmDuration(rawBlob, durationMs, (fixed) => {
+                  res(fixed || rawBlob);
                 });
-              } catch (shareErr) {
-                console.warn('Native share dialog error:', shareErr);
-              }
+              });
+            } catch (fixErr) {
+              console.warn('WebM duration fix skipped:', fixErr);
+              finalBlob = rawBlob;
             }
-          } catch (nativeErr) {
-            console.error('Failed to save natively via Capacitor:', nativeErr);
           }
-        } else {
-          // Standard browser file download for desktop
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.style.display = 'none';
-          a.href = url;
-          a.download = filename;
-          document.body.appendChild(a);
-          a.click();
 
-          setTimeout(() => {
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-          }, 200);
+          let fileUri = null;
+
+          if (Capacitor.isNativePlatform()) {
+            try {
+              const base64Data = await blobToBase64(finalBlob);
+
+              // Save to device Cache first (guaranteed FileProvider access)
+              let saveRes = null;
+              try {
+                saveRes = await Filesystem.writeFile({
+                  path: filename,
+                  data: base64Data,
+                  directory: Directory.Cache
+                });
+              } catch (writeErr) {
+                console.warn('Cache write failed, trying Documents:', writeErr);
+                saveRes = await Filesystem.writeFile({
+                  path: filename,
+                  data: base64Data,
+                  directory: Directory.Documents
+                });
+              }
+
+              fileUri = saveRes ? saveRes.uri : null;
+
+              // Immediately open native Android Share/Save sheet
+              if (fileUri) {
+                await Share.share({
+                  title: 'TeleVideo Studio Video',
+                  text: 'Your teleprompter reel is ready!',
+                  url: fileUri,
+                  dialogTitle: 'Save Video to Phone or Share'
+                });
+              }
+            } catch (nativeErr) {
+              console.error('Failed to save natively via Capacitor:', nativeErr);
+            }
+          } else {
+            // Standard browser download for desktop
+            const url = URL.createObjectURL(finalBlob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+
+            setTimeout(() => {
+              document.body.removeChild(a);
+              window.URL.revokeObjectURL(url);
+            }, 500);
+          }
+
+          resolve({ blob: finalBlob, uri: fileUri, filename });
+        } catch (err) {
+          console.error('Error in onstop recording handler:', err);
+          reject(err);
         }
-
-        resolve(blob);
       };
 
-      this.mediaRecorder.stop();
+      try {
+        recorder.stop();
+      } catch (err) {
+        this.cleanupStream();
+        reject(err);
+      }
     });
   }
 }
