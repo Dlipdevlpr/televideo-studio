@@ -55,8 +55,10 @@ export class VideoExporter {
     this.recordedChunks = [];
     this.startTime = Date.now();
 
-    // 30 FPS is standard, smooth, and lightweight for mobile hardware encoding
-    const canvasStream = this.canvas.captureStream(30);
+    // captureStream(0) = capture a frame every time the canvas is drawn.
+    // This avoids timer drift between rAF and captureStream's internal clock
+    // which was causing duplicate/frozen frames in the exported video.
+    const canvasStream = this.canvas.captureStream(0);
     const combinedTracks = [...canvasStream.getVideoTracks()];
 
     // Add audio track if provided and active
@@ -92,7 +94,7 @@ export class VideoExporter {
     }
 
     const options = {
-      videoBitsPerSecond: 2500000 // 2.5 Mbps crisp mobile video
+      videoBitsPerSecond: 1500000 // 1.5 Mbps — easier for real-time software encoding
     };
     if (selectedMimeType) {
       options.mimeType = selectedMimeType;
@@ -106,7 +108,10 @@ export class VideoExporter {
       }
     };
 
-    this.mediaRecorder.start(100); // Collect chunk every 100ms
+    // No timeslice arg = encoder batches data internally and only flushes
+    // on requestData()/stop(). This prevents the 100ms flush interrupts
+    // that were stealing main-thread time and causing micro-stutters.
+    this.mediaRecorder.start();
     this.isRecording = true;
   }
 
