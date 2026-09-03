@@ -4,18 +4,15 @@ import { Share } from '@capacitor/share';
 import fixWebmDuration from 'fix-webm-duration';
 
 /**
- * Converts a Blob to a raw base64 string (without data URL header)
+ * Converts a Blob to a standard data URL (required by Capacitor Filesystem)
  */
 function blobToBase64(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = reject;
     reader.onload = () => {
-      const dataUrl = reader.result;
-      const base64 = typeof dataUrl === 'string' && dataUrl.includes(',')
-        ? dataUrl.split(',')[1]
-        : dataUrl;
-      resolve(base64);
+      // Return full data URL ("data:video/...;base64,....")
+      resolve(reader.result);
     };
     reader.readAsDataURL(blob);
   });
@@ -27,7 +24,7 @@ export class VideoExporter {
     this.mediaRecorder = null;
     this.recordedChunks = [];
     this.isRecording = false;
-    this.fileExtension = 'webm';
+    this.fileExtension = 'mp4';
     this.stream = null;
     this.startTime = null;
   }
@@ -35,8 +32,8 @@ export class VideoExporter {
   cleanupStream() {
     if (this.stream) {
       try {
-        // Only stop video tracks created from canvas.captureStream!
-        // Never stop external audio tracks so the audio context destination stays alive.
+        // Only stop video tracks generated from the canvas capture stream.
+        // Never terminate external audio tracks so the audio pipeline stays intact.
         this.stream.getVideoTracks().forEach((track) => {
           track.stop();
         });
@@ -58,28 +55,38 @@ export class VideoExporter {
     this.recordedChunks = [];
     this.startTime = Date.now();
 
-    // 30 FPS is standard and lightweight for mobile hardware encoding
+    // 30 FPS is standard, smooth, and lightweight for mobile hardware encoding
     const canvasStream = this.canvas.captureStream(30);
     const combinedTracks = [...canvasStream.getVideoTracks()];
 
     // Add audio track if provided and active
+    let hasAudio = false;
     if (audioStream) {
       const audioTracks = audioStream.getAudioTracks();
       if (audioTracks.length > 0 && audioTracks[0].readyState === 'live' && audioTracks[0].enabled) {
         combinedTracks.push(audioTracks[0]);
+        hasAudio = true;
       }
     }
 
     this.stream = new MediaStream(combinedTracks);
 
-    // Prioritize formats with OPUS audio so microphone/voiceover is reliably encoded
-    const mimeTypesToTry = [
-      'video/webm;codecs=vp8,opus',
-      'video/webm;codecs=vp9,opus',
-      'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
-      'video/webm',
-      'video/mp4'
-    ];
+    // Prioritize formats supported on Android with Opus audio if audio is present
+    const mimeTypesToTry = hasAudio
+      ? [
+          'video/webm;codecs=vp8,opus',
+          'video/webm;codecs=vp9,opus',
+          'video/webm',
+          'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+          'video/mp4'
+        ]
+      : [
+          'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+          'video/mp4;codecs=avc1',
+          'video/mp4',
+          'video/webm;codecs=vp8',
+          'video/webm'
+        ];
 
     let selectedMimeType = '';
     for (const type of mimeTypesToTry) {
@@ -131,15 +138,23 @@ export class VideoExporter {
 
           const rawBlob = new Blob(this.recordedChunks, { type: mime });
 
+          // SAFETY VALIDATION: Guard against empty/corrupted 7-byte recordings
+          if (rawBlob.size < 1000) {
+            throw new Error(`Recording produced an empty file (${rawBlob.size} bytes).`);
+          }
+
           // If WebM, patch missing duration/cues so Android player can seek and play
           let finalBlob = rawBlob;
           if (ext === 'webm') {
             try {
-              finalBlob = await new Promise((res) => {
-                fixWebmDuration(rawBlob, durationMs, (fixed) => {
-                  res(fixed || rawBlob);
+              const fixed = await new Promise((res) => {
+                fixWebmDuration(rawBlob, durationMs, (result) => {
+                  res(result);
                 });
               });
+              if (fixed && fixed.size > 1000) {
+                finalBlob = fixed;
+              }
             } catch (fixErr) {
               console.warn('WebM duration fix skipped:', fixErr);
               finalBlob = rawBlob;
@@ -199,7 +214,7 @@ export class VideoExporter {
             }, 500);
           }
 
-          resolve({ blob: finalBlob, uri: fileUri, filename });
+          resolve({ blob: finalBlob, uri: fileUri, filename, size: finalBlob.size });
         } catch (err) {
           console.error('Error in onstop recording handler:', err);
           reject(err);
@@ -207,7 +222,12 @@ export class VideoExporter {
       };
 
       try {
-        recorder.stop();
+        if (recorder.state === 'recording') {
+          try {
+            recorder.requestData(); // Force flush all pending frames
+          } catch (e) {}
+          recorder.stop();
+        }
       } catch (err) {
         this.cleanupStream();
         reject(err);

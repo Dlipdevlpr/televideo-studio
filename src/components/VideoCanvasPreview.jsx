@@ -220,11 +220,12 @@ export default function VideoCanvasPreview({
           });
         }
       } else if (audioMode === 'upload' && customAudioFile) {
-        if (!audioRef.current) {
-          audioRef.current = new Audio(URL.createObjectURL(customAudioFile));
-        }
-        speechManager.connectAudioElement(audioRef.current);
-        audioRef.current.play();
+        speechManager.ensureAudioContext().then(async () => {
+          if (!speechManager.customAudioBuffer) {
+            await speechManager.loadCustomAudioFile(customAudioFile);
+          }
+          speechManager.playCustomAudio(currentTime);
+        });
       }
     }
   };
@@ -235,10 +236,6 @@ export default function VideoCanvasPreview({
     setCurrentTime(0);
     startTimeRef.current = null;
     speechManager.stop();
-    if (audioRef.current) {
-      audioRef.current.currentTime = 0;
-      audioRef.current.pause();
-    }
   };
 
   const handleSeek = (e) => {
@@ -247,6 +244,9 @@ export default function VideoCanvasPreview({
     const newTime = newProgress * totalDuration;
     setCurrentTime(newTime);
     startTimeRef.current = performance.now() - newTime * 1000;
+    if (isPlaying && audioMode === 'upload' && customAudioFile) {
+      speechManager.playCustomAudio(newTime);
+    }
   };
 
   // Video Export Handler with Audio Multiplexing for Custom Uploaded Audio & TTS
@@ -270,20 +270,13 @@ export default function VideoCanvasPreview({
 
       // Case 1: Custom uploaded audio track (MP3/WAV)
       if (audioMode === 'upload' && customAudioFile) {
-        await speechManager.ensureAudioContext();
-        if (!audioRef.current) {
-          audioRef.current = new Audio();
-        }
-        audioRef.current.src = URL.createObjectURL(customAudioFile);
-        audioRef.current.currentTime = 0;
-        speechManager.connectAudioElement(audioRef.current);
+        await speechManager.loadCustomAudioFile(customAudioFile);
         audioStream = speechManager.getAudioStream();
       } 
       // Case 2: AI Voice (TTS)
       else if (audioMode === 'tts') {
         const textToSpeak = getTtsTextToSpeak();
         if (textToSpeak) {
-          await speechManager.ensureAudioContext();
           audioStream = await speechManager.getExportAudioStream(textToSpeak, selectedVoiceIndex);
         }
       }
@@ -295,12 +288,8 @@ export default function VideoCanvasPreview({
       setIsPlaying(true);
       startTimeRef.current = performance.now();
 
-      if (audioMode === 'upload' && audioRef.current) {
-        try {
-          await audioRef.current.play();
-        } catch (playErr) {
-          console.warn('Audio play error during export:', playErr);
-        }
+      if (audioMode === 'upload') {
+        speechManager.playCustomAudio(0);
       }
 
       const startExportTime = Date.now();

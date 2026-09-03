@@ -170,10 +170,55 @@ class SpeechManager {
     }
   }
 
-  // Stream Neural AI Voice directly into Video Exporter
+  // Load and decode custom uploaded audio file for pristine, stall-free streaming
+  async loadCustomAudioFile(file) {
+    if (!file) return null;
+    await this.ensureAudioContext();
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      this.customAudioBuffer = await this.audioCtx.decodeAudioData(arrayBuffer);
+      return this.customAudioBuffer;
+    } catch (e) {
+      console.warn('Audio decoding error:', e);
+      return null;
+    }
+  }
+
+  playCustomAudio(startTime = 0) {
+    this.stopCustomAudio();
+    if (this.audioCtx && this.customAudioBuffer) {
+      if (
+        !this.destinationNode ||
+        !this.destinationNode.stream ||
+        !this.destinationNode.stream.getAudioTracks()[0] ||
+        this.destinationNode.stream.getAudioTracks()[0].readyState === 'ended'
+      ) {
+        this.destinationNode = this.audioCtx.createMediaStreamDestination();
+      }
+      this.customAudioSource = this.audioCtx.createBufferSource();
+      this.customAudioSource.buffer = this.customAudioBuffer;
+      this.customAudioSource.connect(this.audioCtx.destination);
+      this.customAudioSource.connect(this.destinationNode);
+      this.customAudioSource.start(0, Math.max(0, startTime));
+      return true;
+    }
+    return false;
+  }
+
+  stopCustomAudio() {
+    if (this.customAudioSource) {
+      try {
+        this.customAudioSource.stop();
+        this.customAudioSource.disconnect();
+      } catch (e) {}
+      this.customAudioSource = null;
+    }
+  }
+
+  // Stream Neural AI Voice directly into Video Exporter via AudioBufferSource
   async getExportAudioStream(text, voiceIndex = 0) {
     if (!text || text.trim() === '') return null;
-    this.initAudioContext();
+    await this.ensureAudioContext();
 
     const selectedVoiceObj = TTS_VOICES[voiceIndex] || TTS_VOICES[0];
     const voiceId = selectedVoiceObj.id || 'Brian';
@@ -185,20 +230,24 @@ class SpeechManager {
 
       if (response.ok) {
         const blob = await response.blob();
-        const audioUrl = URL.createObjectURL(blob);
-        
-        if (this.exportAudioElement) {
-          this.exportAudioElement.pause();
+        const arrayBuffer = await blob.arrayBuffer();
+        const audioBuffer = await this.audioCtx.decodeAudioData(arrayBuffer);
+
+        if (
+          !this.destinationNode ||
+          !this.destinationNode.stream ||
+          !this.destinationNode.stream.getAudioTracks()[0] ||
+          this.destinationNode.stream.getAudioTracks()[0].readyState === 'ended'
+        ) {
+          this.destinationNode = this.audioCtx.createMediaStreamDestination();
         }
 
-        this.exportAudioElement = new Audio(audioUrl);
-        this.exportAudioElement.crossOrigin = 'anonymous';
-
-        const source = this.audioCtx.createMediaElementSource(this.exportAudioElement);
-        source.connect(this.audioCtx.destination);
-        source.connect(this.destinationNode);
-
-        this.exportAudioElement.play();
+        this.stopCustomAudio();
+        this.customAudioSource = this.audioCtx.createBufferSource();
+        this.customAudioSource.buffer = audioBuffer;
+        this.customAudioSource.connect(this.audioCtx.destination);
+        this.customAudioSource.connect(this.destinationNode);
+        this.customAudioSource.start(0);
 
         return this.destinationNode.stream;
       }
@@ -219,6 +268,7 @@ class SpeechManager {
     if (this.exportAudioElement) {
       this.exportAudioElement.pause();
     }
+    this.stopCustomAudio();
   }
 
   resume() {
@@ -241,6 +291,7 @@ class SpeechManager {
       this.exportAudioElement.pause();
       this.exportAudioElement = null;
     }
+    this.stopCustomAudio();
     this.isSpeaking = false;
   }
 
