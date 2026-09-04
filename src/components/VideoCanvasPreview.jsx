@@ -335,19 +335,20 @@ export default function VideoCanvasPreview({
         }
       }, 500);
 
-      // Connect to Backend (defaults to localhost for web)
-      // IMPORTANT: For Android testing later, replace 'localhost' with your computer's Hotspot IP or Ngrok URL!
-      let backendHost = 'localhost';
+      // Connect to Backend (tunnel or localhost)
+      let backendUrl = 'http://localhost:3000/api/export';
       if (Capacitor.isNativePlatform()) {
-        backendHost = '10.245.243.128'; // Current computer IP on your Wi-Fi/Hotspot network
+        backendUrl = 'https://silver-tigers-sell.loca.lt/api/export';
       } else {
-        backendHost = window.location.hostname;
+        backendUrl = `${window.location.protocol}//${window.location.hostname}:3000/api/export`;
       }
-      const backendUrl = `http://${backendHost}:3000/api/export`;
       
       const response = await fetch(backendUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Bypass-Tunnel-Reminder': 'true'
+        },
         body: JSON.stringify(payload)
       });
 
