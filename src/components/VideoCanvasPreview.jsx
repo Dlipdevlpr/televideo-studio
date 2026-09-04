@@ -339,7 +339,7 @@ export default function VideoCanvasPreview({
       // IMPORTANT: For Android testing later, replace 'localhost' with your computer's Hotspot IP or Ngrok URL!
       let backendHost = 'localhost';
       if (Capacitor.isNativePlatform()) {
-        backendHost = '192.168.43.15'; // Change this to your computer's IP when testing on mobile!
+        backendHost = '10.245.243.128'; // Current computer IP on your Wi-Fi/Hotspot network
       } else {
         backendHost = window.location.hostname;
       }
