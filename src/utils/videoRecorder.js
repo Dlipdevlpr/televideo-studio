@@ -123,7 +123,7 @@ export class VideoExporter {
       }
 
       const recorder = this.mediaRecorder;
-      const durationMs = totalDurationSec > 0 ? totalDurationSec * 1000 : (Date.now() - (this.startTime || Date.now()));
+      const durationMs = Date.now() - (this.startTime || Date.now());
 
       recorder.onstop = async () => {
         this.isRecording = false;
@@ -221,9 +221,6 @@ export class VideoExporter {
 
       try {
         if (recorder.state === 'recording') {
-          try {
-            recorder.requestData(); // Force flush all pending frames
-          } catch (e) {}
           recorder.stop();
         }
       } catch (err) {
