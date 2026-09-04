@@ -65,7 +65,7 @@ export class VideoExporter {
     let hasAudio = false;
     if (audioStream) {
       const audioTracks = audioStream.getAudioTracks();
-      if (audioTracks.length > 0 && audioTracks[0].readyState === 'live' && audioTracks[0].enabled) {
+      if (audioTracks.length > 0) {
         combinedTracks.push(audioTracks[0]);
         hasAudio = true;
       }
@@ -73,15 +73,15 @@ export class VideoExporter {
 
     this.stream = new MediaStream(combinedTracks);
 
-    // Prioritize MP4 container for universal Windows & Android Gallery playback
+    // Prioritize WebM container to guarantee Audio multiplexing on Android devices
     const mimeTypesToTry = [
+      'video/webm;codecs=vp8,opus',
+      'video/webm;codecs=vp9,opus',
+      'video/webm',
       'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
       'video/mp4;codecs=avc1,opus',
       'video/mp4;codecs=avc1',
-      'video/mp4',
-      'video/webm;codecs=vp9,opus',
-      'video/webm;codecs=vp8,opus',
-      'video/webm'
+      'video/mp4'
     ];
 
     let selectedMimeType = '';
@@ -108,9 +108,9 @@ export class VideoExporter {
       }
     };
 
-    // Use a 250ms timeslice to flush data periodically. No timeslice can
-    // cause memory buildup or cause the encoder to stall on mobile devices.
-    this.mediaRecorder.start(250);
+    // Start recording without a timeslice. Buffering in memory prevents
+    // corrupted chunks from being written if the mobile encoder lags, fixing freezes.
+    this.mediaRecorder.start();
     this.isRecording = true;
   }
 
