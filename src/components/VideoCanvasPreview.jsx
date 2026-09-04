@@ -335,10 +335,10 @@ export default function VideoCanvasPreview({
         }
       }, 500);
 
-      // Connect to Backend (tunnel or localhost)
+      // Connect to Backend (Serveo HTTPS tunnel or localhost)
       let backendUrl = 'http://localhost:3000/api/export';
       if (Capacitor.isNativePlatform()) {
-        backendUrl = 'https://silver-tigers-sell.loca.lt/api/export';
+        backendUrl = 'https://cb661e0180b2fd68-157-48-196-136.serveousercontent.com/api/export';
       } else {
         backendUrl = `${window.location.protocol}//${window.location.hostname}:3000/api/export`;
       }
@@ -346,8 +346,7 @@ export default function VideoCanvasPreview({
       const response = await fetch(backendUrl, {
         method: 'POST',
         headers: { 
-          'Content-Type': 'application/json',
-          'Bypass-Tunnel-Reminder': 'true'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(payload)
       });
