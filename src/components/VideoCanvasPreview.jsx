@@ -335,10 +335,10 @@ export default function VideoCanvasPreview({
         }
       }, 500);
 
-      // Connect to Backend (Serveo HTTPS tunnel or localhost)
+      // Connect to Backend (Persistent localhost.run HTTPS tunnel or localhost)
       let backendUrl = 'http://localhost:3000/api/export';
       if (Capacitor.isNativePlatform()) {
-        backendUrl = 'https://cb661e0180b2fd68-157-48-196-136.serveousercontent.com/api/export';
+        backendUrl = 'https://1132ee850ef1b9.lhr.life/api/export';
       } else {
         backendUrl = `${window.location.protocol}//${window.location.hostname}:3000/api/export`;
       }
