@@ -6,6 +6,7 @@ import { speechManager } from '../utils/speechManager';
 import { VideoExporter } from '../utils/videoRecorder';
 import { Share } from '@capacitor/share';
 import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 
 export default function VideoCanvasPreview({
   scriptText,
@@ -275,86 +276,132 @@ export default function VideoCanvasPreview({
     }
   };
 
-  // ── Video Export ─────────────────────────────────────────────────
+  // ── Video Export (Via Backend) ───────────────────────────────────
   const handleExportVideo = async () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
     try {
       setIsExporting(true);
       setIsRecordingVideo(true);
       setExportPercent(0);
       isRecordingRef.current = true;
 
-      // Reset cleanly
       handleRestart();
       await new Promise(r => setTimeout(r, 250));
 
-      videoExporterRef.current = new VideoExporter(canvas);
+      let audioBase64 = null;
 
-      let audioStream = null;
-
+      // Extract Audio for backend
       if (audioMode === 'upload' && customAudioFile) {
-        await speechManager.loadCustomAudioFile(customAudioFile);
-        audioStream = speechManager.getAudioStream();
+        const reader = new FileReader();
+        reader.readAsDataURL(customAudioFile);
+        audioBase64 = await new Promise(res => reader.onload = () => res(reader.result));
       } else if (audioMode === 'tts') {
         const text = getTtsTextToSpeak();
         if (text) {
-          audioStream = await speechManager.getExportAudioStream(text, selectedVoiceIndex);
+          const TTS_VOICES = [
+            { id: 'Brian' }, { id: 'Amy' }, { id: 'Joanna' }, { id: 'Joey' },
+            { id: 'Matthew' }, { id: 'Kendra' }, { id: 'Nicole' }, { id: 'Russell' }
+          ];
+          const voiceId = (TTS_VOICES[selectedVoiceIndex] || TTS_VOICES[0]).id;
+          const url = `https://api.streamelements.com/kappa/v2/speech?voice=${voiceId}&text=${encodeURIComponent(text.trim())}`;
+          const response = await fetch(url);
+          if (response.ok) {
+             const blob = await response.blob();
+             const reader = new FileReader();
+             reader.readAsDataURL(blob);
+             audioBase64 = await new Promise(res => reader.onload = () => res(reader.result));
+          }
         }
       }
 
-      await videoExporterRef.current.startRecording(audioStream);
-
-      // Start playback (ref-first so the render loop picks it up immediately)
+      // We still play the UI animation for the user while it exports on the backend
       currentTimeRef.current = 0;
       progressRef.current = 0;
       startTimeRef.current = performance.now();
       isPlayingRef.current = true;
       setIsPlaying(true);
+      
+      const payload = {
+        config: renderConfigRef.current,
+        audioBase64,
+        durationSec: totalDurationRef.current || 15
+      };
 
-      if (audioMode === 'upload') {
-        speechManager.playCustomAudio(0);
-      }
-
-      const startExportTime = Date.now();
-      const targetDurationMs = totalDuration * 1000 + 400;
-
-      const exportTimer = setInterval(async () => {
-        const elapsed = Date.now() - startExportTime;
-        const pct = Math.min(100, Math.floor((elapsed / targetDurationMs) * 100));
-        
-        // Use requestAnimationFrame to batch UI updates
-        requestAnimationFrame(() => {
-          setExportPercent(pct);
-          // Also manually update the DOM progress bar to keep rAF alive on aggressive Android devices
-          if (progressBarRef.current) progressBarRef.current.value = pct / 100;
-        });
-
-        if (elapsed >= targetDurationMs) {
-          clearInterval(exportTimer);
-
-          try {
-            if (videoExporterRef.current && videoExporterRef.current.isRecording) {
-              const res = await videoExporterRef.current.stopRecordingAndDownload('teleprompt_reel', totalDuration);
-              setLastExportResult(res);
-              setShowExportModal(true);
-              confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
-            }
-          } catch (exportErr) {
-            console.error('Export finalization error:', exportErr);
-          } finally {
-            isRecordingRef.current = false;
-            setIsRecordingVideo(false);
-            setIsExporting(false);
-            handleRestart();
-          }
+      // Simulated progress bar while waiting for backend
+      let fakePct = 0;
+      const exportTimer = setInterval(() => {
+        if (fakePct < 90) {
+          fakePct += Math.random() * 5;
+          setExportPercent(Math.floor(fakePct));
         }
       }, 500);
+
+      // Connect to Backend (defaults to localhost for web)
+      // IMPORTANT: For Android testing later, replace 'localhost' with your computer's Hotspot IP or Ngrok URL!
+      let backendHost = 'localhost';
+      if (Capacitor.isNativePlatform()) {
+        backendHost = '192.168.43.15'; // Change this to your computer's IP when testing on mobile!
+      } else {
+        backendHost = window.location.hostname;
+      }
+      const backendUrl = `http://${backendHost}:3000/api/export`;
+      
+      const response = await fetch(backendUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      clearInterval(exportTimer);
+      setExportPercent(100);
+
+      if (!response.ok) {
+        throw new Error(`Backend error: ${response.statusText}`);
+      }
+
+      const videoBlob = await response.blob();
+      const filename = `teleprompt_reel_${Date.now()}.mp4`;
+
+      // Handle native save (Capacitor) or Web fallback
+      let uri = null;
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const reader = new FileReader();
+          reader.readAsDataURL(videoBlob);
+          const b64 = await new Promise(res => reader.onload = () => res(reader.result));
+          const rawBase64 = b64.indexOf(',') !== -1 ? b64.split(',')[1] : b64;
+          
+          let saveRes = null;
+          try {
+            saveRes = await Filesystem.writeFile({
+              path: filename,
+              data: rawBase64,
+              directory: Directory.Cache
+            });
+          } catch (e) {
+            saveRes = await Filesystem.writeFile({
+              path: filename,
+              data: rawBase64,
+              directory: Directory.Documents
+            });
+          }
+          uri = saveRes ? saveRes.uri : null;
+        } catch (e) {
+          console.warn("Native file save failed:", e);
+        }
+      }
+
+      setLastExportResult({ blob: videoBlob, filename, uri });
+      setShowExportModal(true);
+      confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
+
     } catch (err) {
       console.error('Video export error:', err);
-      setIsExporting(false);
+      alert('Export failed. Ensure backend is running on port 3000! ' + err.message);
+    } finally {
+      isRecordingRef.current = false;
       setIsRecordingVideo(false);
+      setIsExporting(false);
+      handleRestart();
     }
   };
 

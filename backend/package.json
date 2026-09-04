@@ -1,0 +1,17 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "Video export backend using Canvas + FFmpeg",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "canvas": "^2.11.2",
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "fluent-ffmpeg": "^2.1.3"
+  }
+}
