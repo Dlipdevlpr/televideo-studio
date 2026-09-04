@@ -150,13 +150,17 @@ export class VideoExporter {
           if (Capacitor.isNativePlatform()) {
             try {
               const base64Data = await blobToBase64(finalBlob);
+              
+              // Ensure we strip the data URL prefix (e.g., 'data:video/webm;base64,') 
+              // because Capacitor's Filesystem.writeFile expects a raw base64 string.
+              const rawBase64 = base64Data.indexOf(',') !== -1 ? base64Data.split(',')[1] : base64Data;
 
               // Save to device Cache first (guaranteed FileProvider access)
               let saveRes = null;
               try {
                 saveRes = await Filesystem.writeFile({
                   path: filename,
-                  data: base64Data,
+                  data: rawBase64,
                   directory: Directory.Cache
                 });
               } catch (writeErr) {
@@ -170,15 +174,8 @@ export class VideoExporter {
 
               fileUri = saveRes ? saveRes.uri : null;
 
-              // Immediately open native Android Share/Save sheet
-              if (fileUri) {
-                await Share.share({
-                  title: 'TeleVideo Studio Video',
-                  text: 'Your teleprompter reel is ready!',
-                  url: fileUri,
-                  dialogTitle: 'Save Video to Phone or Share'
-                });
-              }
+              // We no longer automatically trigger Share here because we will
+              // bind it to the "Download Video" button in the UI instead!
             } catch (nativeErr) {
               console.error('Failed to save natively via Capacitor:', nativeErr);
             }

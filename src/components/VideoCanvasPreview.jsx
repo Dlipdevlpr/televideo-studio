@@ -5,6 +5,7 @@ import { renderTeleprompterCanvas } from '../utils/teleprompterEngine';
 import { speechManager } from '../utils/speechManager';
 import { VideoExporter } from '../utils/videoRecorder';
 import { Share } from '@capacitor/share';
+import { Capacitor } from '@capacitor/core';
 
 export default function VideoCanvasPreview({
   scriptText,
@@ -478,40 +479,38 @@ export default function VideoCanvasPreview({
               <div className="export-modal-actions">
                 <button
                   className="btn btn-primary flex-1 py-2"
-                  onClick={() => {
-                    const url = URL.createObjectURL(lastExportResult.blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = lastExportResult.filename;
-                    document.body.appendChild(a);
-                    a.click();
-                    setTimeout(() => document.body.removeChild(a), 500);
+                  onClick={async () => {
+                    if (Capacitor.isNativePlatform()) {
+                      // On Android, explicitly trigger the native Share/Save sheet
+                      if (lastExportResult?.uri) {
+                        try {
+                          await Share.share({
+                            title: 'TeleVideo Studio Video',
+                            text: 'Your teleprompter reel is ready!',
+                            url: lastExportResult.uri,
+                            dialogTitle: 'Save Video to Phone or Share'
+                          });
+                        } catch (e) {
+                          console.warn('Share error:', e);
+                        }
+                      } else {
+                        alert('Could not save file natively. Try exporting again.');
+                      }
+                    } else {
+                      // Desktop Web Fallback
+                      const url = URL.createObjectURL(lastExportResult.blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = lastExportResult.filename;
+                      document.body.appendChild(a);
+                      a.click();
+                      setTimeout(() => document.body.removeChild(a), 500);
+                    }
                   }}
                 >
-                  <Download size={16} />
-                  <span>Download Video</span>
+                  {Capacitor.isNativePlatform() ? <Share2 size={16} /> : <Download size={16} />}
+                  <span>{Capacitor.isNativePlatform() ? 'Save / Share' : 'Download Video'}</span>
                 </button>
-
-                {lastExportResult?.uri && (
-                  <button
-                    className="btn btn-secondary py-2"
-                    onClick={async () => {
-                      try {
-                        await Share.share({
-                          title: 'TeleVideo Studio Video',
-                          text: 'Your teleprompter reel is ready!',
-                          url: lastExportResult.uri,
-                          dialogTitle: 'Save Video to Phone or Share'
-                        });
-                      } catch (e) {
-                        console.warn(e);
-                      }
-                    }}
-                  >
-                    <Share2 size={16} />
-                    <span>Save / Share</span>
-                  </button>
-                )}
               </div>
 
               <div className="export-modal-tip">
