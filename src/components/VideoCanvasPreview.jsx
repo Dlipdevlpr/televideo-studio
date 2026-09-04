@@ -330,7 +330,7 @@ export default function VideoCanvasPreview({
       let fakePct = 0;
       const exportTimer = setInterval(() => {
         if (fakePct < 90) {
-          fakePct += Math.random() * 5;
+          fakePct += Math.random() * 2.5; // Slower progress (takes ~20 seconds to reach 90%)
           setExportPercent(Math.floor(fakePct));
         }
       }, 500);

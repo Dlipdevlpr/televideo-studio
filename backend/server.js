@@ -48,7 +48,7 @@ app.post('/api/export', async (req, res) => {
     const command = ffmpeg()
       .input(imageStream)
       .inputFormat('image2pipe')
-      .inputOption('-vcodec png')
+      .inputOption('-vcodec mjpeg')
       .inputFps(fps);
 
     if (audioPath) {
@@ -60,8 +60,7 @@ app.post('/api/export', async (req, res) => {
         '-c:v libx264',
         '-pix_fmt yuv420p',
         // Optional: speed up encoding if you don't mind a slightly larger file
-        '-preset veryfast', 
-        '-shortest'
+        '-preset veryfast'
       ]);
 
     if (audioPath) {
@@ -118,7 +117,7 @@ app.post('/api/export', async (req, res) => {
         renderTeleprompterCanvas(ctx, frameConfig);
         
         // Extract raw bytes
-        const buffer = canvas.toBuffer('image/png');
+        const buffer = canvas.toBuffer('image/jpeg', { quality: 0.85 });
         const canWrite = imageStream.write(buffer);
         
         // Handle stream backpressure so we don't overload memory
