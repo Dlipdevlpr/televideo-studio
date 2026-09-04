@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
-import fixWebmDuration from 'fix-webm-duration';
+
 
 /**
  * Converts a Blob to a standard data URL (required by Capacitor Filesystem)
@@ -141,23 +141,9 @@ export class VideoExporter {
             throw new Error(`Recording produced an empty file (${rawBlob.size} bytes).`);
           }
 
-          // If WebM, patch missing duration/cues so Android player can seek and play
+          // Note: Removed fix-webm-duration because it is known to corrupt EBML headers 
+          // on modern Chrome WebM blobs, causing the video to freeze in the middle of playback!
           let finalBlob = rawBlob;
-          if (ext === 'webm') {
-            try {
-              const fixed = await new Promise((res) => {
-                fixWebmDuration(rawBlob, durationMs, (result) => {
-                  res(result);
-                });
-              });
-              if (fixed && fixed.size > 1000) {
-                finalBlob = fixed;
-              }
-            } catch (fixErr) {
-              console.warn('WebM duration fix skipped:', fixErr);
-              finalBlob = rawBlob;
-            }
-          }
 
           let fileUri = null;
 
