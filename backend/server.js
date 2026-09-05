@@ -78,31 +78,58 @@ app.post('/api/export', async (req, res) => {
       command.input(bgmPath).inputOption('-stream_loop -1');
     }
 
-    command.outputOptions([
-      '-c:v libx264',
-      '-pix_fmt yuv420p',
-      '-preset veryfast'
-    ]);
-
-    // Handle Audio Mixing
+    // Handle Audio Mixing & Stream Mapping
     if (audioPath && bgmPath) {
       const vol = Math.max(0, Math.min(1, parseFloat(bgmVolume)));
       command.complexFilter([
         `[1:a]volume=1.0[voice]`,
         `[2:a]volume=${vol}[bgm]`,
         `[voice][bgm]amix=inputs=2:duration=longest:dropout_transition=2[aout]`
-      ], ['aout']);
-      command.outputOptions(['-c:a aac', '-b:a 128k', `-t ${durationSec}`]);
+      ]);
+      command.outputOptions([
+        '-map 0:v',
+        '-map [aout]',
+        '-c:v libx264',
+        '-pix_fmt yuv420p',
+        '-preset veryfast',
+        '-c:a aac',
+        '-b:a 128k',
+        `-t ${durationSec}`
+      ]);
     } else if (audioPath) {
-      command.outputOptions(['-c:a aac', '-b:a 128k', `-t ${durationSec}`]);
+      command.outputOptions([
+        '-map 0:v',
+        '-map 1:a',
+        '-c:v libx264',
+        '-pix_fmt yuv420p',
+        '-preset veryfast',
+        '-c:a aac',
+        '-b:a 128k',
+        `-t ${durationSec}`
+      ]);
     } else if (bgmPath) {
       const vol = Math.max(0, Math.min(1, parseFloat(bgmVolume)));
       command.complexFilter([
         `[1:a]volume=${vol}[aout]`
-      ], ['aout']);
-      command.outputOptions(['-c:a aac', '-b:a 128k', `-t ${durationSec}`]);
+      ]);
+      command.outputOptions([
+        '-map 0:v',
+        '-map [aout]',
+        '-c:v libx264',
+        '-pix_fmt yuv420p',
+        '-preset veryfast',
+        '-c:a aac',
+        '-b:a 128k',
+        `-t ${durationSec}`
+      ]);
     } else {
-      command.outputOptions([`-t ${durationSec}`]);
+      command.outputOptions([
+        '-map 0:v',
+        '-c:v libx264',
+        '-pix_fmt yuv420p',
+        '-preset veryfast',
+        `-t ${durationSec}`
+      ]);
     }
 
     command.save(outputPath);
