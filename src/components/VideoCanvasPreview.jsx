@@ -371,11 +371,11 @@ export default function VideoCanvasPreview({
       }, 500);
 
       // Connect to Backend (Persistent localhost.run HTTPS tunnel or localhost)
-      let backendUrl = 'http://localhost:3000/api/export';
+      let backendUrl = 'http://localhost:3005/api/export';
       if (Capacitor.isNativePlatform()) {
         backendUrl = 'https://1132ee850ef1b9.lhr.life/api/export';
       } else {
-        backendUrl = `${window.location.protocol}//${window.location.hostname}:3000/api/export`;
+        backendUrl = `${window.location.protocol}//${window.location.hostname}:3005/api/export`;
       }
       
       const response = await fetch(backendUrl, {
@@ -431,7 +431,7 @@ export default function VideoCanvasPreview({
 
     } catch (err) {
       console.error('Video export error:', err);
-      alert('Export failed. Ensure backend is running on port 3000! ' + err.message);
+      alert('Export failed. Ensure backend is running! ' + err.message);
     } finally {
       isRecordingRef.current = false;
       setIsRecordingVideo(false);

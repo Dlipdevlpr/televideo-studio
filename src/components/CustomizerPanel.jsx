@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Sliders, Type, Palette, Eye, Layout, Square, Music, Volume2, Upload, Disc, Play } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Sliders, Type, Palette, Eye, Layout, Square, Music, Volume2, Upload, Disc, Play, Save, Trash2, Bookmark } from 'lucide-react';
 import { BGM_PRESETS } from '../utils/bgmData';
 import { speechManager } from '../utils/speechManager';
 
@@ -55,6 +55,83 @@ export default function CustomizerPanel({
 }) {
   const [activeTab, setActiveTab] = useState('mode');
   const [isPreviewingBgm, setIsPreviewingBgm] = useState(false);
+  const [presets, setPresets] = useState({});
+  const [presetName, setPresetName] = useState('');
+  const [selectedPreset, setSelectedPreset] = useState('');
+
+  useEffect(() => {
+    const saved = localStorage.getItem('televideo_presets');
+    if (saved) {
+      try {
+        setPresets(JSON.parse(saved));
+      } catch (e) {
+        console.error('Failed to parse presets', e);
+      }
+    }
+  }, []);
+
+  const savePreset = () => {
+    if (!presetName.trim()) return;
+    const newPresets = {
+      ...presets,
+      [presetName.trim()]: {
+        scrollMode, fontFamily, fontSize, textColor, highlightColor,
+        activeLineBg, bgTheme, solidBgColor, textPosition, speedWpm,
+        showProgressBar, showAudioVisualizer, watermarkText, showWatermark,
+        showReadingBox, boxScale, boxWidthPercent, boxBorderRadius, boxBorderWidth,
+        bgmTrackId, bgmVolume
+      }
+    };
+    setPresets(newPresets);
+    localStorage.setItem('televideo_presets', JSON.stringify(newPresets));
+    setSelectedPreset(presetName.trim());
+    setPresetName('');
+  };
+
+  const loadPreset = (name) => {
+    const p = presets[name];
+    if (!p) return;
+    setSelectedPreset(name);
+    
+    if (p.scrollMode !== undefined) setScrollMode(p.scrollMode);
+    if (p.fontFamily !== undefined) setFontFamily(p.fontFamily);
+    if (p.fontSize !== undefined) setFontSize(p.fontSize);
+    if (p.textColor !== undefined) setTextColor(p.textColor);
+    if (p.highlightColor !== undefined) setHighlightColor(p.highlightColor);
+    if (p.activeLineBg !== undefined) setActiveLineBg(p.activeLineBg);
+    if (p.bgTheme !== undefined) setBgTheme(p.bgTheme);
+    if (p.solidBgColor !== undefined) setSolidBgColor(p.solidBgColor);
+    if (p.textPosition !== undefined) setTextPosition(p.textPosition);
+    if (p.speedWpm !== undefined) setSpeedWpm(p.speedWpm);
+    if (p.showProgressBar !== undefined) setShowProgressBar(p.showProgressBar);
+    if (p.showAudioVisualizer !== undefined) setShowAudioVisualizer(p.showAudioVisualizer);
+    if (p.watermarkText !== undefined) setWatermarkText(p.watermarkText);
+    if (p.showWatermark !== undefined) setShowWatermark(p.showWatermark);
+    if (p.showReadingBox !== undefined) setShowReadingBox(p.showReadingBox);
+    if (p.boxScale !== undefined) setBoxScale(p.boxScale);
+    if (p.boxWidthPercent !== undefined) setBoxWidthPercent(p.boxWidthPercent);
+    if (p.boxBorderRadius !== undefined) setBoxBorderRadius(p.boxBorderRadius);
+    if (p.boxBorderWidth !== undefined) setBoxBorderWidth(p.boxBorderWidth);
+    if (p.bgmTrackId !== undefined) {
+      setBgmTrackId(p.bgmTrackId);
+      if (isPreviewingBgm) {
+         speechManager.stopBgm();
+         setIsPreviewingBgm(false);
+      }
+    }
+    if (p.bgmVolume !== undefined) {
+      setBgmVolume(p.bgmVolume);
+      speechManager.setBgmVolume(p.bgmVolume);
+    }
+  };
+
+  const deletePreset = (name) => {
+    const newPresets = { ...presets };
+    delete newPresets[name];
+    setPresets(newPresets);
+    localStorage.setItem('televideo_presets', JSON.stringify(newPresets));
+    if (selectedPreset === name) setSelectedPreset('');
+  };
 
   const handleTogglePreview = async (trackId = bgmTrackId) => {
     if (isPreviewingBgm) {
@@ -96,6 +173,68 @@ export default function CustomizerPanel({
       </div>
 
       <div className="panel-body">
+        {/* Presets Management Section */}
+        <div className="card mb-4 bg-gray-800/40 border border-gray-700/50">
+          <div className="flex items-center gap-2 mb-3 text-indigo-300">
+            <Bookmark size={14} />
+            <span className="text-xs font-bold uppercase tracking-wider">Style Presets</span>
+          </div>
+          
+          <div className="space-y-3">
+            {Object.keys(presets).length > 0 && (
+              <div className="flex items-center gap-2">
+                <select 
+                  className="form-select text-xs flex-1"
+                  value={selectedPreset}
+                  onChange={(e) => loadPreset(e.target.value)}
+                >
+                  <option value="" disabled>-- Load a saved preset --</option>
+                  {Object.keys(presets).map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+                {selectedPreset && (
+                  <button 
+                    onClick={() => deletePreset(selectedPreset)}
+                    className="p-2 bg-rose-500/20 text-rose-400 rounded hover:bg-rose-500/30 transition-colors"
+                    title="Delete Selected Preset"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+            )}
+            
+            <div className="flex items-center gap-2">
+              <input 
+                type="text" 
+                placeholder="Name current settings..." 
+                className="form-input text-xs flex-1"
+                value={presetName}
+                onChange={(e) => setPresetName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    savePreset();
+                  }
+                }}
+              />
+              <button 
+                onClick={savePreset}
+                disabled={!presetName.trim()}
+                className={`p-2 flex items-center justify-center rounded transition-colors ${
+                  presetName.trim() 
+                    ? 'bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer shadow-lg shadow-indigo-500/20' 
+                    : 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
+                }`}
+                title="Save Current Settings as Preset"
+              >
+                <Save size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* Navigation Tabs */}
         <div className="tabs-header">
           <button

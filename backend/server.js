@@ -211,7 +211,7 @@ app.post('/api/export', async (req, res) => {
   }
 });
 
-const PORT = 3000;
+const PORT = 3005;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Backend server running on http://localhost:${PORT}`);
   console.log(`For mobile testing, connect to your computer's local IP address on port ${PORT}`);
