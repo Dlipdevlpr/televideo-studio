@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Sliders, Type, Palette, Eye, Layout, Square, Music, Volume2, Upload, Disc } from 'lucide-react';
+import { Sliders, Type, Palette, Eye, Layout, Square, Music, Volume2, Upload, Disc, Play } from 'lucide-react';
 import { BGM_PRESETS } from '../utils/bgmData';
+import { speechManager } from '../utils/speechManager';
 
 export default function CustomizerPanel({
   scrollMode,
@@ -53,6 +54,37 @@ export default function CustomizerPanel({
   setCustomBgmFile
 }) {
   const [activeTab, setActiveTab] = useState('mode');
+  const [isPreviewingBgm, setIsPreviewingBgm] = useState(false);
+
+  const handleTogglePreview = async (trackId = bgmTrackId) => {
+    if (isPreviewingBgm) {
+      speechManager.stopBgm();
+      setIsPreviewingBgm(false);
+    } else {
+      if (trackId === 'none') return;
+      const src = (trackId === 'custom' && customBgmFile) ? customBgmFile : null;
+      await speechManager.playBgm(src, bgmVolume, trackId);
+      setIsPreviewingBgm(true);
+    }
+  };
+
+  const handleSelectTrack = async (newTrackId) => {
+    setBgmTrackId(newTrackId);
+    if (isPreviewingBgm) {
+      if (newTrackId === 'none') {
+        speechManager.stopBgm();
+        setIsPreviewingBgm(false);
+      } else {
+        const src = (newTrackId === 'custom' && customBgmFile) ? customBgmFile : null;
+        await speechManager.playBgm(src, bgmVolume, newTrackId);
+      }
+    }
+  };
+
+  const handleVolumeChange = (newVol) => {
+    setBgmVolume(newVol);
+    speechManager.setBgmVolume(newVol);
+  };
 
   return (
     <div className="panel panel-right">
@@ -442,12 +474,12 @@ export default function CustomizerPanel({
                   <Disc size={14} className="text-indigo-400" />
                   <span>20 Royalty-Free Presets</span>
                 </span>
-                <span className="text-[10px] text-gray-400">Royalty-Free</span>
+                <span className="text-[10px] text-emerald-400 font-medium">100% Free & Offline</span>
               </label>
               <select
                 className="form-select text-xs"
                 value={bgmTrackId}
-                onChange={(e) => setBgmTrackId(e.target.value)}
+                onChange={(e) => handleSelectTrack(e.target.value)}
               >
                 {BGM_PRESETS.map((preset) => (
                   <option key={preset.id} value={preset.id}>
@@ -457,6 +489,31 @@ export default function CustomizerPanel({
                 <option value="custom">📁 Custom Music Upload...</option>
               </select>
             </div>
+
+            {/* Live Audition / Listen Button */}
+            {bgmTrackId !== 'none' && (
+              <button
+                type="button"
+                className={`btn w-full flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${
+                  isPreviewingBgm
+                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 hover:bg-rose-500/30 animate-pulse'
+                    : 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-600/30'
+                }`}
+                onClick={() => handleTogglePreview()}
+              >
+                {isPreviewingBgm ? (
+                  <>
+                    <Square size={14} className="fill-current" />
+                    <span>⏹ Stop Audio Preview</span>
+                  </>
+                ) : (
+                  <>
+                    <Play size={14} className="fill-current" />
+                    <span>▶ Preview Music Track</span>
+                  </>
+                )}
+              </button>
+            )}
 
             {bgmTrackId === 'custom' && (
               <div className="card space-y-2">
@@ -468,6 +525,9 @@ export default function CustomizerPanel({
                   onChange={(e) => {
                     if (e.target.files && e.target.files[0]) {
                       setCustomBgmFile(e.target.files[0]);
+                      if (isPreviewingBgm) {
+                        speechManager.playBgm(e.target.files[0], bgmVolume, 'custom');
+                      }
                     }
                   }}
                 />
@@ -496,7 +556,7 @@ export default function CustomizerPanel({
                 max="0.80"
                 step="0.02"
                 value={bgmVolume}
-                onChange={(e) => setBgmVolume(parseFloat(e.target.value))}
+                onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
               />
               <p className="text-[10px] text-gray-400 italic">
                 💡 Recommended: 15% - 25% keeps background music subtle so speech stays clear.

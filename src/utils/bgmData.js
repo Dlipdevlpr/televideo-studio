@@ -24,30 +24,32 @@ export const BGM_PRESETS = [
   { id: 'trap-booster', name: 'High Energy Trap Beat', genre: 'Trap / Electronic', icon: 'Activity' },
   { id: 'indie-rock', name: 'Upbeat Indie Acoustic Rock', genre: 'Indie / Rock', icon: 'Compass' },
   { id: 'chillwave-sunset', name: 'Golden Hour Chillwave', genre: 'Chillwave / Synth', icon: 'Sunset' },
-  { id: 'motivation-drive', name: 'Motivational Gym & Fitness Drive', genre: 'Workout / Rock', icon: 'Award' }
+  { id: 'motivation-drive', name: 'Motivational Gym & Fitness Drive', genre: 'Workout / Rock', icon: 'Award' },
+  { id: 'deep-focus', name: 'Lo-Fi Deep Focus Study', genre: 'Study / Focus', icon: 'BookOpen' }
 ];
 
 // Custom musical chord progressions & timbres for each of the 20 genres
 const GENRE_SCALES = {
-  'lofi-beats': { freqs: [[261.63, 329.63, 392.0, 493.88], [220.0, 261.63, 329.63, 392.0], [174.61, 220.0, 261.63, 329.63], [196.0, 246.94, 293.66, 349.23]], tempo: 4.0, wave: 'sine', vinyl: true },
+  'lofi-beats': { freqs: [[261.63, 329.63, 392.0, 493.88], [220.0, 261.63, 329.63, 392.0], [174.61, 220.0, 261.63, 329.63], [196.0, 246.94, 293.66, 349.23]], tempo: 3.5, wave: 'sine', vinyl: true },
   'upbeat-pop': { freqs: [[261.63, 329.63, 392.0], [349.23, 440.0, 523.25], [220.0, 261.63, 329.63], [196.0, 246.94, 293.66]], tempo: 2.0, wave: 'triangle', vinyl: false },
-  'cinematic-inspire': { freqs: [[130.81, 196.0, 261.63, 329.63], [110.0, 164.81, 220.0, 261.63], [174.61, 261.63, 349.23], [146.83, 220.0, 293.66]], tempo: 5.0, wave: 'sine', vinyl: false },
+  'cinematic-inspire': { freqs: [[130.81, 196.0, 261.63, 329.63], [110.0, 164.81, 220.0, 261.63], [174.61, 261.63, 349.23], [146.83, 220.0, 293.66]], tempo: 4.5, wave: 'sine', vinyl: false },
   'tech-future': { freqs: [[110.0, 220.0, 277.18], [123.47, 246.94, 293.66], [130.81, 261.63, 329.63], [98.0, 196.0, 246.94]], tempo: 1.5, wave: 'sawtooth', vinyl: false },
   'corporate-growth': { freqs: [[261.63, 329.63, 392.0], [293.66, 369.99, 440.0], [329.63, 392.0, 493.88], [349.23, 440.0, 523.25]], tempo: 3.0, wave: 'sine', vinyl: false },
   'synthwave-80s': { freqs: [[110.0, 164.81, 220.0, 277.18], [146.83, 220.0, 293.66], [174.61, 261.63, 349.23], [130.81, 196.0, 261.63]], tempo: 2.5, wave: 'sawtooth', vinyl: false },
-  'calm-piano': { freqs: [[261.63, 329.63, 392.0], [220.0, 261.63, 329.63], [174.61, 220.0, 261.63], [196.0, 246.94, 293.66]], tempo: 4.5, wave: 'sine', vinyl: false },
+  'calm-piano': { freqs: [[261.63, 329.63, 392.0], [220.0, 261.63, 329.63], [174.61, 220.0, 261.63], [196.0, 246.94, 293.66]], tempo: 4.0, wave: 'sine', vinyl: false },
   'hiphop-groove': { freqs: [[130.81, 164.81, 196.0], [110.0, 130.81, 164.81], [98.0, 123.47, 146.83], [110.0, 146.83, 174.61]], tempo: 2.0, wave: 'triangle', vinyl: true },
-  'ambient-space': { freqs: [[130.81, 196.0, 261.63, 392.0], [110.0, 164.81, 246.94, 329.63]], tempo: 6.0, wave: 'sine', vinyl: false },
-  'acoustic-vibes': { freqs: [[196.0, 246.94, 293.66, 392.0], [164.81, 196.0, 246.94, 329.63], [174.61, 220.0, 261.63, 349.23], [196.0, 246.94, 293.66]], tempo: 3.5, wave: 'triangle', vinyl: false },
-  'dramatic-tension': { freqs: [[87.31, 130.81, 155.56], [73.42, 110.0, 130.81], [65.41, 98.0, 116.54], [87.31, 116.54, 130.81]], tempo: 4.0, wave: 'sawtooth', vinyl: false },
-  'lofi-night': { freqs: [[174.61, 220.0, 261.63, 311.13], [146.83, 174.61, 220.0, 261.63], [130.81, 164.81, 196.0, 246.94], [110.0, 146.83, 174.61]], tempo: 4.0, wave: 'sine', vinyl: true },
+  'ambient-space': { freqs: [[130.81, 196.0, 261.63, 392.0], [110.0, 164.81, 246.94, 329.63]], tempo: 5.5, wave: 'sine', vinyl: false },
+  'acoustic-vibes': { freqs: [[196.0, 246.94, 293.66, 392.0], [164.81, 196.0, 246.94, 329.63], [174.61, 220.0, 261.63, 349.23], [196.0, 246.94, 293.66]], tempo: 3.2, wave: 'triangle', vinyl: false },
+  'dramatic-tension': { freqs: [[87.31, 130.81, 155.56], [73.42, 110.0, 130.81], [65.41, 98.0, 116.54], [87.31, 116.54, 130.81]], tempo: 3.8, wave: 'sawtooth', vinyl: false },
+  'lofi-night': { freqs: [[174.61, 220.0, 261.63, 311.13], [146.83, 174.61, 220.0, 261.63], [130.81, 164.81, 196.0, 246.94], [110.0, 146.83, 174.61]], tempo: 3.5, wave: 'sine', vinyl: true },
   'pop-funk': { freqs: [[196.0, 246.94, 293.66, 349.23], [220.0, 277.18, 329.63, 392.0], [174.61, 220.0, 261.63, 329.63]], tempo: 1.8, wave: 'square', vinyl: false },
-  'meditation-zen': { freqs: [[130.81, 196.0, 261.63], [164.81, 246.94, 329.63]], tempo: 7.0, wave: 'sine', vinyl: false },
-  'jazz-cafe': { freqs: [[261.63, 329.63, 392.0, 493.88, 587.33], [220.0, 261.63, 329.63, 392.0, 493.88], [174.61, 220.0, 261.63, 329.63, 392.0], [196.0, 246.94, 293.66, 349.23, 440.0]], tempo: 3.5, wave: 'sine', vinyl: true },
+  'meditation-zen': { freqs: [[130.81, 196.0, 261.63], [164.81, 246.94, 329.63]], tempo: 6.0, wave: 'sine', vinyl: false },
+  'jazz-cafe': { freqs: [[261.63, 329.63, 392.0, 493.88, 587.33], [220.0, 261.63, 329.63, 392.0, 493.88], [174.61, 220.0, 261.63, 329.63, 392.0], [196.0, 246.94, 293.66, 349.23, 440.0]], tempo: 3.2, wave: 'sine', vinyl: true },
   'trap-booster': { freqs: [[65.41, 130.81, 155.56], [73.42, 146.83, 174.61], [87.31, 174.61, 196.0]], tempo: 1.6, wave: 'sawtooth', vinyl: false },
   'indie-rock': { freqs: [[164.81, 207.65, 246.94], [174.61, 220.0, 261.63], [196.0, 246.94, 293.66]], tempo: 2.2, wave: 'triangle', vinyl: false },
-  'chillwave-sunset': { freqs: [[196.0, 246.94, 293.66, 392.0], [220.0, 261.63, 329.63, 440.0], [174.61, 220.0, 261.63, 349.23]], tempo: 4.0, wave: 'sine', vinyl: false },
-  'motivation-drive': { freqs: [[130.81, 196.0, 261.63], [146.83, 220.0, 293.66], [174.61, 261.63, 349.23], [196.0, 293.66, 392.0]], tempo: 2.0, wave: 'sawtooth', vinyl: false }
+  'chillwave-sunset': { freqs: [[196.0, 246.94, 293.66, 392.0], [220.0, 261.63, 329.63, 440.0], [174.61, 220.0, 261.63, 349.23]], tempo: 3.5, wave: 'sine', vinyl: false },
+  'motivation-drive': { freqs: [[130.81, 196.0, 261.63], [146.83, 220.0, 293.66], [174.61, 261.63, 349.23], [196.0, 293.66, 392.0]], tempo: 2.0, wave: 'sawtooth', vinyl: false },
+  'deep-focus': { freqs: [[220.0, 261.63, 329.63], [174.61, 220.0, 261.63], [196.0, 246.94, 293.66], [164.81, 196.0, 246.94]], tempo: 4.0, wave: 'sine', vinyl: true }
 };
 
 /**
@@ -74,30 +76,34 @@ export function generateProceduralBgmBuffer(audioCtx, durationSec = 30, trackId 
     currentChord.forEach((freq, idx) => {
       let osc = 0;
       if (wave === 'sawtooth') {
-        osc = (2 * ((freq * t) % 1) - 1) * 0.10;
+        osc = (2 * ((freq * t) % 1) - 1) * 0.12;
       } else if (wave === 'square') {
-        osc = (((freq * t) % 1) > 0.5 ? 0.08 : -0.08);
+        osc = (((freq * t) % 1) > 0.5 ? 0.10 : -0.10);
       } else if (wave === 'triangle') {
-        osc = (Math.abs(4 * ((freq * t) % 1 - 0.5)) - 1) * 0.12;
+        osc = (Math.abs(4 * ((freq * t) % 1 - 0.5)) - 1) * 0.15;
       } else {
         // Sine
-        osc = Math.sin(2 * Math.PI * freq * t) * 0.15;
+        osc = Math.sin(2 * Math.PI * freq * t) * 0.20;
       }
 
-      const sub = Math.sin(2 * Math.PI * (freq / 2) * t) * 0.08;
+      const sub = Math.sin(2 * Math.PI * (freq / 2) * t) * 0.10;
       const pan = (idx / (Math.max(1, currentChord.length - 1))) * 0.6 - 0.3;
 
       sampleL += (osc + sub) * (0.5 - pan);
       sampleR += (osc + sub) * (0.5 + pan);
     });
 
-    // Envelope modulation
+    // Envelope modulation and vinyl warmth
     const env = vinyl 
-      ? 0.8 + 0.2 * Math.sin(2 * Math.PI * 0.25 * t) + (Math.random() * 0.015 - 0.0075)
-      : 0.85 + 0.15 * Math.sin(2 * Math.PI * 0.2 * t);
+      ? 0.85 + 0.15 * Math.sin(2 * Math.PI * 0.25 * t) + (Math.random() * 0.01 - 0.005)
+      : 0.88 + 0.12 * Math.sin(2 * Math.PI * 0.2 * t);
 
-    left[i] = sampleL * env * 0.30;
-    right[i] = sampleR * env * 0.30;
+    // Rhythm accent
+    const beatPhase = (t % (chordDuration / 2)) / (chordDuration / 2);
+    const pulse = Math.exp(-beatPhase * 5) * 0.08;
+
+    left[i] = Math.max(-1, Math.min(1, (sampleL * env + pulse) * 0.45));
+    right[i] = Math.max(-1, Math.min(1, (sampleR * env + pulse) * 0.45));
   }
 
   return buffer;

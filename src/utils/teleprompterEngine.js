@@ -25,6 +25,18 @@ export function wrapText(ctx, text, maxWidth) {
   return lines;
 }
 
+// Universal rounded rectangle renderer (supports browser Canvas and node-canvas Cairo backend)
+export function drawRoundedRect(ctx, x, y, width, height, radius = 0) {
+  const r = Math.max(0, Math.min(Number(radius) || 0, width / 2, height / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
 // Particle system state for dynamic backgrounds
 const particles = Array.from({ length: 30 }, () => ({
   x: Math.random(),
@@ -344,8 +356,7 @@ function renderSmoothScroll(ctx, config) {
     const boxX = (width - boxWidth) / 2;
 
     ctx.fillStyle = activeLineBg;
-    ctx.beginPath();
-    ctx.roundRect(boxX, targetCenterY - boxHeight / 2, boxWidth, boxHeight, boxBorderRadius);
+    drawRoundedRect(ctx, boxX, targetCenterY - boxHeight / 2, boxWidth, boxHeight, boxBorderRadius);
     ctx.fill();
 
     if (boxBorderWidth > 0) {
@@ -451,8 +462,7 @@ function renderKineticWords(ctx, config) {
 
       if (isActive) {
         ctx.fillStyle = highlightColor;
-        ctx.beginPath();
-        ctx.roundRect(currentX - 10, centerY - bigFontSize * 0.65, wWidth + 20, bigFontSize * 1.3, 12);
+        drawRoundedRect(ctx, currentX - 10, centerY - bigFontSize * 0.65, wWidth + 20, bigFontSize * 1.3, 12);
         ctx.fill();
 
         ctx.fillStyle = '#000000';
@@ -478,8 +488,7 @@ function renderKineticWords(ctx, config) {
 
       if (isActive) {
         ctx.fillStyle = highlightColor;
-        ctx.beginPath();
-        ctx.roundRect(width / 2 - wWidth / 2 - 14, lineY - bigFontSize * 0.6, wWidth + 28, bigFontSize * 1.2, 12);
+        drawRoundedRect(ctx, width / 2 - wWidth / 2 - 14, lineY - bigFontSize * 0.6, wWidth + 28, bigFontSize * 1.2, 12);
         ctx.fill();
 
         ctx.fillStyle = '#000000';
@@ -548,8 +557,7 @@ function renderLineFocus(ctx, config) {
     const boxX = (width - boxWidth) / 2;
 
     ctx.fillStyle = activeLineBg;
-    ctx.beginPath();
-    ctx.roundRect(boxX, centerY - boxHeight / 2, boxWidth, boxHeight, boxBorderRadius);
+    drawRoundedRect(ctx, boxX, centerY - boxHeight / 2, boxWidth, boxHeight, boxBorderRadius);
     ctx.fill();
 
     if (boxBorderWidth > 0) {
