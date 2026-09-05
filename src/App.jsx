@@ -51,6 +51,11 @@ export default function App() {
   const [isRecordingAudio, setIsRecordingAudio] = useState(false);
   const [customAudioFile, setCustomAudioFile] = useState(null);
 
+  // Background Music (BGM) State
+  const [bgmTrackId, setBgmTrackId] = useState('lofi-beats');
+  const [bgmVolume, setBgmVolume] = useState(0.20);
+  const [customBgmFile, setCustomBgmFile] = useState(null);
+
   // TTS Selective Line Scope State
   const [ttsRangeMode, setTtsRangeMode] = useState('first-line'); // 'first-line' | 'first-two' | 'custom' | 'full'
   const [selectedTtsLines, setSelectedTtsLines] = useState(new Set([0])); // Default Line 1 checked
@@ -160,6 +165,9 @@ export default function App() {
             selectedVoiceIndex={selectedVoiceIndex}
             speechRate={speechRate}
             customAudioFile={customAudioFile}
+            bgmTrackId={bgmTrackId}
+            bgmVolume={bgmVolume}
+            customBgmFile={customBgmFile}
             isExporting={isExporting}
             setIsExporting={setIsExporting}
             showReadingBox={showReadingBox}
@@ -213,6 +221,12 @@ export default function App() {
             setBoxBorderRadius={setBoxBorderRadius}
             boxBorderWidth={boxBorderWidth}
             setBoxBorderWidth={setBoxBorderWidth}
+            bgmTrackId={bgmTrackId}
+            setBgmTrackId={setBgmTrackId}
+            bgmVolume={bgmVolume}
+            setBgmVolume={setBgmVolume}
+            customBgmFile={customBgmFile}
+            setCustomBgmFile={setCustomBgmFile}
           />
         </div>
       </main>

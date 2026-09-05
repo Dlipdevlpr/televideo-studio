@@ -7,6 +7,7 @@ import { VideoExporter } from '../utils/videoRecorder';
 import { Share } from '@capacitor/share';
 import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
+import { BGM_PRESETS } from '../utils/bgmData';
 
 export default function VideoCanvasPreview({
   scriptText,
@@ -31,6 +32,9 @@ export default function VideoCanvasPreview({
   selectedVoiceIndex,
   speechRate,
   customAudioFile,
+  bgmTrackId,
+  bgmVolume,
+  customBgmFile,
   isExporting,
   setIsExporting,
 
@@ -215,6 +219,11 @@ export default function VideoCanvasPreview({
     return () => cancelAnimationFrame(rafId);
   }, []); // ← empty deps: mount once, never restart
 
+  // Sync BGM volume with speechManager
+  useEffect(() => {
+    speechManager.setBgmVolume(bgmVolume);
+  }, [bgmVolume]);
+
   // ── Playback Controls ────────────────────────────────────────────
   const togglePlay = () => {
     if (isPlayingRef.current) {
@@ -232,6 +241,20 @@ export default function VideoCanvasPreview({
       startTimeRef.current = performance.now() - currentTimeRef.current * 1000;
       isPlayingRef.current = true;
       setIsPlaying(true);
+
+      // Trigger BGM in live preview
+      if (bgmTrackId && bgmTrackId !== 'none') {
+        let bgmSrc = null;
+        if (bgmTrackId === 'custom' && customBgmFile) {
+          bgmSrc = customBgmFile;
+        } else {
+          const preset = BGM_PRESETS.find(p => p.id === bgmTrackId);
+          if (preset && preset.url) bgmSrc = preset.url;
+        }
+        if (bgmSrc) {
+          speechManager.playBgm(bgmSrc, bgmVolume);
+        }
+      }
 
       if (audioMode === 'tts') {
         const text = getTtsTextToSpeak();
@@ -288,8 +311,10 @@ export default function VideoCanvasPreview({
       await new Promise(r => setTimeout(r, 250));
 
       let audioBase64 = null;
+      let bgmBase64 = null;
+      let bgmUrl = null;
 
-      // Extract Audio for backend
+      // Extract Main Audio for backend
       if (audioMode === 'upload' && customAudioFile) {
         const reader = new FileReader();
         reader.readAsDataURL(customAudioFile);
@@ -313,6 +338,18 @@ export default function VideoCanvasPreview({
         }
       }
 
+      // Extract BGM for backend
+      if (bgmTrackId && bgmTrackId !== 'none') {
+        if (bgmTrackId === 'custom' && customBgmFile) {
+          const reader = new FileReader();
+          reader.readAsDataURL(customBgmFile);
+          bgmBase64 = await new Promise(res => reader.onload = () => res(reader.result));
+        } else {
+          const preset = BGM_PRESETS.find(p => p.id === bgmTrackId);
+          if (preset && preset.url) bgmUrl = preset.url;
+        }
+      }
+
       // We still play the UI animation for the user while it exports on the backend
       currentTimeRef.current = 0;
       progressRef.current = 0;
@@ -323,6 +360,9 @@ export default function VideoCanvasPreview({
       const payload = {
         config: renderConfigRef.current,
         audioBase64,
+        bgmBase64,
+        bgmUrl,
+        bgmVolume,
         durationSec: totalDurationRef.current || 15
       };
 

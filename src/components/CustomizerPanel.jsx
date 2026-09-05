@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Sliders, Type, Palette, Eye, Layout, Square } from 'lucide-react';
+import { Sliders, Type, Palette, Eye, Layout, Square, Music, Volume2, Upload, Disc } from 'lucide-react';
+import { BGM_PRESETS } from '../utils/bgmData';
 
 export default function CustomizerPanel({
   scrollMode,
@@ -41,7 +42,15 @@ export default function CustomizerPanel({
   boxBorderRadius,
   setBoxBorderRadius,
   boxBorderWidth,
-  setBoxBorderWidth
+  setBoxBorderWidth,
+
+  // Background Music Controls
+  bgmTrackId,
+  setBgmTrackId,
+  bgmVolume,
+  setBgmVolume,
+  customBgmFile,
+  setCustomBgmFile
 }) {
   const [activeTab, setActiveTab] = useState('mode');
 
@@ -91,6 +100,13 @@ export default function CustomizerPanel({
           >
             <Eye size={14} />
             <span>FX</span>
+          </button>
+          <button
+            className={`tab-btn ${activeTab === 'music' ? 'active' : ''}`}
+            onClick={() => setActiveTab('music')}
+          >
+            <Music size={14} />
+            <span>Music</span>
           </button>
         </div>
 
@@ -413,6 +429,78 @@ export default function CustomizerPanel({
                   onChange={(e) => setWatermarkText(e.target.value)}
                 />
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Tab 6: Background Music */}
+        {activeTab === 'music' && (
+          <div className="space-y-4">
+            <div className="form-group">
+              <label className="form-label flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-xs font-semibold">
+                  <Disc size={14} className="text-indigo-400" />
+                  <span>20 Royalty-Free Presets</span>
+                </span>
+                <span className="text-[10px] text-gray-400">Royalty-Free</span>
+              </label>
+              <select
+                className="form-select text-xs"
+                value={bgmTrackId}
+                onChange={(e) => setBgmTrackId(e.target.value)}
+              >
+                {BGM_PRESETS.map((preset) => (
+                  <option key={preset.id} value={preset.id}>
+                    {preset.name} ({preset.genre})
+                  </option>
+                ))}
+                <option value="custom">📁 Custom Music Upload...</option>
+              </select>
+            </div>
+
+            {bgmTrackId === 'custom' && (
+              <div className="card space-y-2">
+                <label className="text-xs font-semibold block">Upload Music File (.mp3/.wav)</label>
+                <input
+                  type="file"
+                  accept="audio/*"
+                  className="form-input text-xs"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      setCustomBgmFile(e.target.files[0]);
+                    }
+                  }}
+                />
+                {customBgmFile && (
+                  <p className="text-[11px] text-emerald-400 font-mono truncate">
+                    🎵 Selected: {customBgmFile.name}
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div className="card space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold flex items-center gap-1.5">
+                  <Volume2 size={14} className="text-amber-400" />
+                  <span>Music Volume</span>
+                </span>
+                <span className="text-xs font-bold text-amber-400 font-mono">
+                  {Math.round(bgmVolume * 100)}%
+                </span>
+              </div>
+              <input
+                type="range"
+                className="range-slider w-full"
+                min="0"
+                max="0.80"
+                step="0.02"
+                value={bgmVolume}
+                onChange={(e) => setBgmVolume(parseFloat(e.target.value))}
+              />
+              <p className="text-[10px] text-gray-400 italic">
+                💡 Recommended: 15% - 25% keeps background music subtle so speech stays clear.
+              </p>
             </div>
           </div>
         )}

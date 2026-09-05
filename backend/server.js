@@ -23,21 +23,40 @@ app.use(express.json({ limit: '50mb' }));
 
 app.post('/api/export', async (req, res) => {
   try {
-    const { config, audioBase64, durationSec } = req.body;
+    const { config, audioBase64, bgmBase64, bgmUrl, bgmVolume = 0.20, durationSec } = req.body;
     
     console.log(`Starting export: ${durationSec} seconds...`);
     
-    // 1. Save audio to a temp file
+    // 1. Save main speech audio to a temp file
     let audioPath = null;
     if (audioBase64) {
-      // Clean base64 string if it has a prefix
       const base64Data = audioBase64.indexOf(',') !== -1 ? audioBase64.split(',')[1] : audioBase64;
       const audioBuffer = Buffer.from(base64Data, 'base64');
       audioPath = path.join(__dirname, `temp_audio_${Date.now()}.mp3`);
       fs.writeFileSync(audioPath, audioBuffer);
     }
+
+    // 2. Save or Download BGM audio to a temp file
+    let bgmPath = null;
+    if (bgmBase64) {
+      const base64Data = bgmBase64.indexOf(',') !== -1 ? bgmBase64.split(',')[1] : bgmBase64;
+      const bgmBuffer = Buffer.from(base64Data, 'base64');
+      bgmPath = path.join(__dirname, `temp_bgm_${Date.now()}.mp3`);
+      fs.writeFileSync(bgmPath, bgmBuffer);
+    } else if (bgmUrl) {
+      try {
+        const bgmResponse = await fetch(bgmUrl);
+        if (bgmResponse.ok) {
+          const arrayBuffer = await bgmResponse.arrayBuffer();
+          bgmPath = path.join(__dirname, `temp_bgm_${Date.now()}.mp3`);
+          fs.writeFileSync(bgmPath, Buffer.from(arrayBuffer));
+        }
+      } catch (bgmErr) {
+        console.warn('BGM fetch error:', bgmErr);
+      }
+    }
     
-    // 2. Set up FFmpeg stream and process
+    // 3. Set up FFmpeg stream and process
     const outputPath = path.join(__dirname, `output_${Date.now()}.mp4`);
     
     const fps = 30;
@@ -55,33 +74,51 @@ app.post('/api/export', async (req, res) => {
       command.input(audioPath);
     }
 
-    command
-      .outputOptions([
-        '-c:v libx264',
-        '-pix_fmt yuv420p',
-        // Optional: speed up encoding if you don't mind a slightly larger file
-        '-preset veryfast'
-      ]);
+    if (bgmPath) {
+      command.input(bgmPath).inputOption('-stream_loop -1');
+    }
 
-    if (audioPath) {
-      command.outputOptions([
-        '-c:a aac',
-        '-b:a 128k'
-      ]);
+    command.outputOptions([
+      '-c:v libx264',
+      '-pix_fmt yuv420p',
+      '-preset veryfast'
+    ]);
+
+    // Handle Audio Mixing
+    if (audioPath && bgmPath) {
+      const vol = Math.max(0, Math.min(1, parseFloat(bgmVolume)));
+      command.complexFilter([
+        `[1:a]volume=1.0[voice]`,
+        `[2:a]volume=${vol}[bgm]`,
+        `[voice][bgm]amix=inputs=2:duration=first:dropout_transition=2[aout]`
+      ], ['aout']);
+      command.outputOptions(['-c:a aac', '-b:a 128k']);
+    } else if (audioPath) {
+      command.outputOptions(['-c:a aac', '-b:a 128k']);
+    } else if (bgmPath) {
+      const vol = Math.max(0, Math.min(1, parseFloat(bgmVolume)));
+      command.complexFilter([
+        `[1:a]volume=${vol}[aout]`
+      ], ['aout']);
+      command.outputOptions(['-c:a aac', '-b:a 128k']);
     }
 
     command.save(outputPath);
       
     let isFinished = false;
+
+    const cleanup = () => {
+      if (audioPath && fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
+      if (bgmPath && fs.existsSync(bgmPath)) fs.unlinkSync(bgmPath);
+      if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+    };
     
-    // 3. Handle FFmpeg events
+    // 4. Handle FFmpeg events
     command.on('end', () => {
       isFinished = true;
       console.log('Export finished! Sending file to client...');
       res.download(outputPath, 'teleprompt_reel.mp4', () => {
-        // Cleanup temp files after download completes
-        if (audioPath && fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
-        if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+        cleanup();
       });
     });
     
@@ -89,8 +126,7 @@ app.post('/api/export', async (req, res) => {
       console.error('FFmpeg Error:', err);
       if (!isFinished) {
         res.status(500).json({ error: 'Video generation failed: ' + err.message });
-        if (audioPath && fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
-        if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+        cleanup();
       }
     });
 

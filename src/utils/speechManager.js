@@ -32,6 +32,11 @@ class SpeechManager {
     this.recordedChunks = [];
     this.isRecordingAudio = false;
 
+    // Background Music (BGM) state
+    this.bgmAudioElement = null;
+    this.bgmGainNode = null;
+    this.bgmSourceNode = null;
+
     if (this.synth) {
       this.loadBrowserVoices();
       if (this.synth.onvoiceschanged !== undefined) {
@@ -292,6 +297,7 @@ class SpeechManager {
       this.exportAudioElement = null;
     }
     this.stopCustomAudio();
+    this.stopBgm();
     this.isSpeaking = false;
   }
 
@@ -336,6 +342,68 @@ class SpeechManager {
         this.mediaRecorder.stream.getTracks().forEach(track => track.stop());
       }
     });
+  }
+
+  // ── Background Music (BGM) Live Routing & Control ──────────────────
+  async playBgm(audioSrc, volume = 0.20) {
+    this.stopBgm();
+    if (!audioSrc) return;
+    await this.ensureAudioContext();
+
+    try {
+      this.bgmAudioElement = new Audio();
+      this.bgmAudioElement.crossOrigin = 'anonymous';
+      this.bgmAudioElement.loop = true;
+      
+      if (typeof audioSrc === 'string') {
+        this.bgmAudioElement.src = audioSrc;
+      } else if (audioSrc instanceof File || audioSrc instanceof Blob) {
+        this.bgmAudioElement.src = URL.createObjectURL(audioSrc);
+      }
+
+      this.bgmGainNode = this.audioCtx.createGain();
+      this.bgmGainNode.gain.value = Math.max(0, Math.min(1, volume));
+
+      this.bgmSourceNode = this.audioCtx.createMediaElementSource(this.bgmAudioElement);
+      this.bgmSourceNode.connect(this.bgmGainNode);
+      this.bgmGainNode.connect(this.audioCtx.destination);
+      if (this.destinationNode) {
+        this.bgmGainNode.connect(this.destinationNode);
+      }
+
+      await this.bgmAudioElement.play();
+    } catch (err) {
+      console.warn('BGM live playback error:', err);
+    }
+  }
+
+  setBgmVolume(volume) {
+    const vol = Math.max(0, Math.min(1, parseFloat(volume)));
+    if (this.bgmGainNode && this.audioCtx) {
+      this.bgmGainNode.gain.setValueAtTime(vol, this.audioCtx.currentTime);
+    }
+  }
+
+  stopBgm() {
+    if (this.bgmAudioElement) {
+      try {
+        this.bgmAudioElement.pause();
+        this.bgmAudioElement.src = '';
+      } catch (e) {}
+      this.bgmAudioElement = null;
+    }
+    if (this.bgmSourceNode) {
+      try {
+        this.bgmSourceNode.disconnect();
+      } catch (e) {}
+      this.bgmSourceNode = null;
+    }
+    if (this.bgmGainNode) {
+      try {
+        this.bgmGainNode.disconnect();
+      } catch (e) {}
+      this.bgmGainNode = null;
+    }
   }
 }
 
