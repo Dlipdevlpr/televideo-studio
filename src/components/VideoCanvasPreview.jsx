@@ -7,7 +7,7 @@ import { VideoExporter } from '../utils/videoRecorder';
 import { Share } from '@capacitor/share';
 import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
-import { BGM_PRESETS } from '../utils/bgmData';
+import { BGM_PRESETS, generateProceduralBgmBuffer, audioBufferToBase64Wav } from '../utils/bgmData';
 
 export default function VideoCanvasPreview({
   scriptText,
@@ -244,16 +244,8 @@ export default function VideoCanvasPreview({
 
       // Trigger BGM in live preview
       if (bgmTrackId && bgmTrackId !== 'none') {
-        let bgmSrc = null;
-        if (bgmTrackId === 'custom' && customBgmFile) {
-          bgmSrc = customBgmFile;
-        } else {
-          const preset = BGM_PRESETS.find(p => p.id === bgmTrackId);
-          if (preset && preset.url) bgmSrc = preset.url;
-        }
-        if (bgmSrc) {
-          speechManager.playBgm(bgmSrc, bgmVolume);
-        }
+        let bgmSrc = (bgmTrackId === 'custom' && customBgmFile) ? customBgmFile : null;
+        speechManager.playBgm(bgmSrc, bgmVolume, bgmTrackId);
       }
 
       if (audioMode === 'tts') {
@@ -345,8 +337,11 @@ export default function VideoCanvasPreview({
           reader.readAsDataURL(customBgmFile);
           bgmBase64 = await new Promise(res => reader.onload = () => res(reader.result));
         } else {
-          const preset = BGM_PRESETS.find(p => p.id === bgmTrackId);
-          if (preset && preset.url) bgmUrl = preset.url;
+          // Render BGM preset audio buffer directly to WAV Base64 for 100% reliable backend FFmpeg mixing!
+          const audioCtx = await speechManager.ensureAudioContext();
+          const duration = totalDurationRef.current || 30;
+          const bgmBuf = generateProceduralBgmBuffer(audioCtx, duration, bgmTrackId);
+          bgmBase64 = audioBufferToBase64Wav(bgmBuf);
         }
       }
 

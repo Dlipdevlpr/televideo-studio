@@ -1,7 +1,4 @@
-/**
- * TeleVideo Studio - Speech & Audio Manager
- * Multi-source Web Audio router for custom audio uploads, TTS speech, and microphone tracks.
- */
+import { generateProceduralBgmBuffer } from './bgmData';
 
 const TTS_VOICES = [
   { name: 'Brian (UK Male)', id: 'Brian' },
@@ -345,33 +342,39 @@ class SpeechManager {
   }
 
   // ── Background Music (BGM) Live Routing & Control ──────────────────
-  async playBgm(audioSrc, volume = 0.20) {
+  async playBgm(audioSrc, volume = 0.20, trackId = 'lofi-beats') {
     this.stopBgm();
-    if (!audioSrc) return;
+    if (!audioSrc && !trackId) return;
     await this.ensureAudioContext();
 
     try {
-      this.bgmAudioElement = new Audio();
-      this.bgmAudioElement.crossOrigin = 'anonymous';
-      this.bgmAudioElement.loop = true;
-      
-      if (typeof audioSrc === 'string') {
-        this.bgmAudioElement.src = audioSrc;
-      } else if (audioSrc instanceof File || audioSrc instanceof Blob) {
-        this.bgmAudioElement.src = URL.createObjectURL(audioSrc);
-      }
-
       this.bgmGainNode = this.audioCtx.createGain();
       this.bgmGainNode.gain.value = Math.max(0, Math.min(1, volume));
 
-      this.bgmSourceNode = this.audioCtx.createMediaElementSource(this.bgmAudioElement);
-      this.bgmSourceNode.connect(this.bgmGainNode);
+      if (audioSrc instanceof File || audioSrc instanceof Blob || (typeof audioSrc === 'string' && audioSrc.startsWith('http'))) {
+        this.bgmAudioElement = new Audio();
+        this.bgmAudioElement.crossOrigin = 'anonymous';
+        this.bgmAudioElement.loop = true;
+        this.bgmAudioElement.src = typeof audioSrc === 'string' ? audioSrc : URL.createObjectURL(audioSrc);
+
+        this.bgmSourceNode = this.audioCtx.createMediaElementSource(this.bgmAudioElement);
+        this.bgmSourceNode.connect(this.bgmGainNode);
+        await this.bgmAudioElement.play();
+      } else {
+        // Render procedural synth buffer for 100% reliable 20 genre presets!
+        const buffer = generateProceduralBgmBuffer(this.audioCtx, 60, trackId || 'lofi-beats');
+        const bufferSource = this.audioCtx.createBufferSource();
+        bufferSource.buffer = buffer;
+        bufferSource.loop = true;
+        bufferSource.connect(this.bgmGainNode);
+        bufferSource.start(0);
+        this.bgmSourceNode = bufferSource;
+      }
+
       this.bgmGainNode.connect(this.audioCtx.destination);
       if (this.destinationNode) {
         this.bgmGainNode.connect(this.destinationNode);
       }
-
-      await this.bgmAudioElement.play();
     } catch (err) {
       console.warn('BGM live playback error:', err);
     }
