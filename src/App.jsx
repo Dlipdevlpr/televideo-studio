@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { FileText, PlaySquare, Sliders } from 'lucide-react';
+import { FileText, PlaySquare, Sliders, Mic, Music, Settings, Zap } from 'lucide-react';
 import Navbar from './components/Navbar';
 import ScriptEditor from './components/ScriptEditor';
 import CustomizerPanel from './components/CustomizerPanel';
 import VideoCanvasPreview from './components/VideoCanvasPreview';
 import PresetsModal from './components/PresetsModal';
+import DraftsModal from './components/DraftsModal';
 import { speechManager } from './utils/speechManager';
 
 export default function App() {
@@ -23,11 +24,11 @@ export default function App() {
   const [fontFamily, setFontFamily] = useState('Inter');
   const [fontSize, setFontSize] = useState(36);
   const [textColor, setTextColor] = useState('#ffffff');
-  const [highlightColor, setHighlightColor] = useState('#6366f1');
-  const [activeLineBg, setActiveLineBg] = useState('rgba(99, 102, 241, 0.25)');
+  const [highlightColor, setHighlightColor] = useState('#8b5cf6');
+  const [activeLineBg, setActiveLineBg] = useState('rgba(139, 92, 246, 0.25)');
   const [boxOpacity, setBoxOpacity] = useState(0.6);
   const [bgTheme, setBgTheme] = useState('animated-gradient');
-  const [solidBgColor, setSolidBgColor] = useState('#090b10');
+  const [solidBgColor, setSolidBgColor] = useState('#0f1115');
   const [textPosition, setTextPosition] = useState('center');
   const [speedWpm, setSpeedWpm] = useState(140);
 
@@ -62,6 +63,7 @@ export default function App() {
 
   // Modals & Export State
   const [isPresetsOpen, setIsPresetsOpen] = useState(false);
+  const [isDraftsOpen, setIsDraftsOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
   // Handle Preset selection
@@ -101,19 +103,84 @@ export default function App() {
   };
 
   return (
-    <div className="app-container">
-      {/* Navbar */}
-      <Navbar
-        onOpenPresets={() => setIsPresetsOpen(true)}
-        onExport={() => {
-          const exportBtn = document.querySelector('.seek-slider')?.parentElement?.nextElementSibling;
-          if (exportBtn) exportBtn.click();
-        }}
-        isExporting={isExporting}
-        isRecording={isRecordingAudio}
-        aspectRatio={aspectRatio}
-        setAspectRatio={setAspectRatio}
-      />
+    <div className="app-layout">
+      {/* Global Sidebar */}
+      <aside className="global-sidebar">
+        <div className="sidebar-logo">
+          <Zap size={20} className="fill-current" />
+        </div>
+        <div className="sidebar-nav">
+          <button 
+            className="sidebar-btn active" 
+            title="Script & Teleprompter"
+            onClick={() => {
+              const el = document.getElementById('script-section');
+              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }}
+          >
+            <FileText size={20} />
+          </button>
+          <button 
+            className="sidebar-btn group" 
+            title="Audio & Voiceover"
+            onClick={() => {
+              const el = document.getElementById('audio-section');
+              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }}
+          >
+            <Mic size={20} className="group-hover:text-indigo-400 transition-colors" />
+          </button>
+          <button 
+            className="sidebar-btn group" 
+            title="Music & Background"
+            onClick={() => {
+              const tabs = Array.from(document.querySelectorAll('.tab-btn'));
+              const musicTab = tabs.find(t => t.innerText.includes('Music'));
+              if (musicTab) musicTab.click();
+              
+              setTimeout(() => {
+                const el = document.querySelector('.panel-wrapper-style');
+                if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+              }, 50);
+            }}
+          >
+            <Music size={20} className="group-hover:text-indigo-400 transition-colors" />
+          </button>
+          <button 
+            className="sidebar-btn group" 
+            title="Captions & Styling"
+            onClick={() => {
+              const el = document.getElementById('style-section');
+              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
+          >
+            <Sliders size={20} className="group-hover:text-indigo-400 transition-colors" />
+          </button>
+        </div>
+        <div className="sidebar-footer pb-4">
+          <button 
+            className="sidebar-btn group" 
+            title="Settings"
+            onClick={() => alert('Global Settings Menu (Coming in Level 3!)')}
+          >
+            <Settings size={20} className="group-hover:text-gray-200 transition-colors" />
+          </button>
+        </div>
+      </aside>
+
+      <div className="app-container">
+        {/* Navbar */}
+        <Navbar
+          onOpenPresets={() => setIsPresetsOpen(true)}
+          onExport={() => {
+            const exportBtn = document.querySelector('.seek-slider')?.parentElement?.nextElementSibling;
+            if (exportBtn) exportBtn.click();
+          }}
+          isExporting={isExporting}
+          isRecording={isRecordingAudio}
+          aspectRatio={aspectRatio}
+          setAspectRatio={setAspectRatio}
+        />
 
       {/* Main Workspace Layout */}
       <main className="main-workspace">
@@ -258,13 +325,23 @@ export default function App() {
         </button>
       </nav>
 
-      {/* Presets Modal */}
       <PresetsModal
         isOpen={isPresetsOpen}
         onClose={() => setIsPresetsOpen(false)}
         onSelectPreset={handleSelectPreset}
         activePresetId={activePresetId}
       />
+
+      <DraftsModal
+        isOpen={isDraftsOpen}
+        onClose={() => setIsDraftsOpen(false)}
+        onSelectDraft={(draft) => {
+          if (draft.script) setScriptText(draft.script);
+        }}
+      />
+      
+      <button id="btn-open-drafts" className="hidden" onClick={() => setIsDraftsOpen(true)}></button>
+    </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Play, Pause, RotateCcw, Download, Radio, Volume2, Share2, X, Film } from 'lucide-react';
+import { Play, Pause, RotateCcw, Download, Radio, Volume2, Share2, X, Film, Bookmark } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { renderTeleprompterCanvas } from '../utils/teleprompterEngine';
 import { speechManager } from '../utils/speechManager';
@@ -244,7 +244,7 @@ export default function VideoCanvasPreview({
 
       // Trigger BGM in live preview
       if (bgmTrackId && bgmTrackId !== 'none') {
-        let bgmSrc = (bgmTrackId === 'custom' && customBgmFile) ? customBgmFile : null;
+        let bgmSrc = (bgmTrackId.startsWith('custom') && customBgmFile) ? customBgmFile : null;
         speechManager.playBgm(bgmSrc, bgmVolume, bgmTrackId);
       }
 
@@ -258,9 +258,8 @@ export default function VideoCanvasPreview({
         }
       } else if (audioMode === 'upload' && customAudioFile) {
         speechManager.ensureAudioContext().then(async () => {
-          if (!speechManager.customAudioBuffer) {
-            await speechManager.loadCustomAudioFile(customAudioFile);
-          }
+          // Always reload to ensure if they click a different saved voiceover, it switches correctly
+          await speechManager.loadCustomAudioFile(customAudioFile);
           speechManager.playCustomAudio(currentTimeRef.current);
         });
       }
@@ -332,7 +331,7 @@ export default function VideoCanvasPreview({
 
       // Extract BGM for backend
       if (bgmTrackId && bgmTrackId !== 'none') {
-        if (bgmTrackId === 'custom' && customBgmFile) {
+        if (bgmTrackId.startsWith('custom') && customBgmFile) {
           const reader = new FileReader();
           reader.readAsDataURL(customBgmFile);
           bgmBase64 = await new Promise(res => reader.onload = () => res(reader.result));
@@ -483,38 +482,85 @@ export default function VideoCanvasPreview({
           />
         </div>
 
-        <div className="control-bar">
-          <button className="play-btn" onClick={togglePlay} title={isPlaying ? 'Pause' : 'Play'}>
-            {isPlaying ? <Pause size={20} /> : <Play size={20} className="ml-0.5" />}
-          </button>
-
-          <button className="btn btn-secondary btn-sm restart-btn" onClick={handleRestart} title="Restart">
-            <RotateCcw size={14} />
-          </button>
-
-          <div className="playback-progress">
-            <span ref={timeDisplayRef}>{formatTime(currentTime)}</span>
-            <input
-              ref={progressBarRef}
-              type="range"
-              className="range-slider seek-slider"
-              min="0"
-              max="1"
-              step="0.005"
-              value={progress}
-              onChange={handleSeek}
-            />
-            <span>{formatTime(totalDuration)}</span>
+        <div className="flex flex-col items-center w-full max-w-sm mt-4 gap-4">
+          {/* Playback Timeline */}
+          <div className="w-full flex items-center justify-between gap-3 px-4 py-2 bg-gray-800/80 backdrop-blur rounded-2xl border border-gray-700/50 shadow-lg">
+            <button 
+              className="w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center transition-all shadow-[0_0_15px_rgba(139,92,246,0.4)]" 
+              onClick={togglePlay} 
+              title={isPlaying ? 'Pause' : 'Play'}
+            >
+              {isPlaying ? <Pause size={18} className="fill-current" /> : <Play size={18} className="fill-current ml-1" />}
+            </button>
+            <button className="text-gray-400 hover:text-white transition-colors" onClick={handleRestart} title="Restart">
+              <RotateCcw size={16} />
+            </button>
+            
+            <div className="flex-1 flex items-center gap-2 text-[11px] font-mono text-gray-400">
+              <span ref={timeDisplayRef}>{formatTime(currentTime)}</span>
+              <input
+                ref={progressBarRef}
+                type="range"
+                className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                min="0"
+                max="1"
+                step="0.005"
+                value={progress}
+                onChange={handleSeek}
+              />
+              <span>{formatTime(totalDuration)}</span>
+            </div>
+            
+            <button className="text-gray-400 hover:text-white transition-colors">
+              <Volume2 size={16} />
+            </button>
           </div>
 
-          <button
-            className="btn btn-accent btn-sm control-export-btn"
-            onClick={handleExportVideo}
-            disabled={isExporting || isRecordingVideo}
-          >
-            <Download size={14} />
-            <span className="btn-text">{isExporting ? `${exportPercent}%` : 'Export'}</span>
-          </button>
+          {/* Primary Action Buttons */}
+          <div className="w-full flex gap-3">
+            <button 
+              className="flex-1 py-3 px-4 rounded-xl font-bold text-sm bg-[#1e2229] text-gray-300 border border-gray-700/50 hover:bg-[#262b33] hover:text-white transition-all flex justify-center items-center gap-2 group"
+              onClick={() => {
+                const draftsStr = localStorage.getItem('televideo_draft_history') || '[]';
+                let drafts = [];
+                try { drafts = JSON.parse(draftsStr); } catch(e){}
+                
+                const preview = scriptText.trim().split(' ').slice(0, 8).join(' ') + (scriptText.trim().split(' ').length > 8 ? '...' : '');
+                const newDraft = {
+                  id: Date.now().toString(),
+                  timestamp: Date.now(),
+                  preview: preview || 'Empty Script',
+                  script: scriptText
+                };
+                
+                drafts.unshift(newDraft);
+                if (drafts.length > 20) drafts = drafts.slice(0, 20); // Keep last 20
+                
+                localStorage.setItem('televideo_draft_history', JSON.stringify(drafts));
+                
+                const btn = document.getElementById('save-draft-btn-text');
+                if (btn) {
+                  btn.innerText = 'Saved!';
+                  btn.classList.add('text-emerald-400');
+                  setTimeout(() => {
+                    btn.innerText = 'Save Draft';
+                    btn.classList.remove('text-emerald-400');
+                  }, 2000);
+                }
+              }}
+            >
+              <Bookmark size={16} className="group-hover:text-indigo-400 transition-colors" />
+              <span id="save-draft-btn-text">Save Draft</span>
+            </button>
+            <button
+              className="flex-[1.5] py-3 px-4 rounded-xl font-bold text-sm bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white shadow-[0_4px_25px_rgba(139,92,246,0.5)] transition-all flex justify-center items-center gap-2"
+              onClick={handleExportVideo}
+              disabled={isExporting || isRecordingVideo}
+            >
+              <Download size={16} />
+              {isExporting ? `Exporting ${exportPercent}%` : 'Export Video'}
+            </button>
+          </div>
         </div>
 
         {lastExportResult && (

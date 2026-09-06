@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Sliders, Type, Palette, Eye, Layout, Square, Music, Volume2, Upload, Disc, Play, Save, Trash2, Bookmark } from 'lucide-react';
+import { Sliders, Type, Palette, Eye, Layout, Square, Music, Volume2, Upload, Disc, Play, Pause, Save, Trash2, Bookmark } from 'lucide-react';
 import { BGM_PRESETS } from '../utils/bgmData';
+import { saveCustomBgm, getCustomBgms, deleteCustomBgm } from '../utils/storageDB';
 import { speechManager } from '../utils/speechManager';
 
 export default function CustomizerPanel({
@@ -58,8 +59,10 @@ export default function CustomizerPanel({
   const [presets, setPresets] = useState({});
   const [presetName, setPresetName] = useState('');
   const [selectedPreset, setSelectedPreset] = useState('');
+  const [savedBgms, setSavedBgms] = useState([]);
 
   useEffect(() => {
+    // Load presets from localStorage
     const saved = localStorage.getItem('televideo_presets');
     if (saved) {
       try {
@@ -68,6 +71,11 @@ export default function CustomizerPanel({
         console.error('Failed to parse presets', e);
       }
     }
+
+    // Load custom BGMs from IndexedDB
+    getCustomBgms().then(bgms => {
+      setSavedBgms(bgms || []);
+    }).catch(e => console.error(e));
   }, []);
 
   const savePreset = () => {
@@ -133,27 +141,29 @@ export default function CustomizerPanel({
     if (selectedPreset === name) setSelectedPreset('');
   };
 
-  const handleTogglePreview = async (trackId = bgmTrackId) => {
-    if (isPreviewingBgm) {
+  const handleTogglePreview = async (trackId, blob = null) => {
+    if (isPreviewingBgm === trackId) {
       speechManager.stopBgm();
       setIsPreviewingBgm(false);
     } else {
       if (trackId === 'none') return;
-      const src = (trackId === 'custom' && customBgmFile) ? customBgmFile : null;
+      speechManager.stopBgm();
+      const src = trackId.startsWith('custom') ? blob : null;
       await speechManager.playBgm(src, bgmVolume, trackId);
-      setIsPreviewingBgm(true);
+      setIsPreviewingBgm(trackId);
     }
   };
 
-  const handleSelectTrack = async (newTrackId) => {
+  const handleSelectTrack = async (newTrackId, blob = null) => {
     setBgmTrackId(newTrackId);
     if (isPreviewingBgm) {
       if (newTrackId === 'none') {
         speechManager.stopBgm();
         setIsPreviewingBgm(false);
       } else {
-        const src = (newTrackId === 'custom' && customBgmFile) ? customBgmFile : null;
+        const src = newTrackId.startsWith('custom') ? blob : null;
         await speechManager.playBgm(src, bgmVolume, newTrackId);
+        setIsPreviewingBgm(newTrackId);
       }
     }
   };
@@ -174,7 +184,7 @@ export default function CustomizerPanel({
 
       <div className="panel-body">
         {/* Presets Management Section */}
-        <div className="card mb-4 bg-gray-800/40 border border-gray-700/50">
+        <div id="style-section" className="card mb-4 bg-gray-800/40 border border-gray-700/50">
           <div className="flex items-center gap-2 mb-3 text-indigo-300">
             <Bookmark size={14} />
             <span className="text-xs font-bold uppercase tracking-wider">Style Presets</span>
@@ -182,26 +192,29 @@ export default function CustomizerPanel({
           
           <div className="space-y-3">
             {Object.keys(presets).length > 0 && (
-              <div className="flex items-center gap-2">
-                <select 
-                  className="form-select text-xs flex-1"
-                  value={selectedPreset}
-                  onChange={(e) => loadPreset(e.target.value)}
-                >
-                  <option value="" disabled>-- Load a saved preset --</option>
-                  {Object.keys(presets).map(p => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
-                {selectedPreset && (
-                  <button 
-                    onClick={() => deletePreset(selectedPreset)}
-                    className="p-2 bg-rose-500/20 text-rose-400 rounded hover:bg-rose-500/30 transition-colors"
-                    title="Delete Selected Preset"
+              <div className="flex flex-wrap gap-2">
+                {Object.keys(presets).map(p => (
+                  <button
+                    key={p}
+                    onClick={() => loadPreset(p)}
+                    className={`group relative px-3 py-1.5 rounded-full text-[11px] font-bold tracking-wide transition-all border ${
+                      selectedPreset === p 
+                        ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300 shadow-[0_0_10px_rgba(139,92,246,0.2)]' 
+                        : 'bg-[#1e2229] border-gray-700/50 text-gray-400 hover:border-gray-500 hover:text-gray-200 hover:bg-[#262b33]'
+                    }`}
                   >
-                    <Trash2 size={14} />
+                    {p}
+                    {selectedPreset === p && (
+                      <span 
+                        className="ml-2 inline-flex items-center justify-center w-4 h-4 rounded-full bg-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white transition-colors"
+                        onClick={(e) => { e.stopPropagation(); deletePreset(p); }}
+                        title="Delete Preset"
+                      >
+                        ×
+                      </span>
+                    )}
                   </button>
-                )}
+                ))}
               </div>
             )}
             
@@ -615,44 +628,124 @@ export default function CustomizerPanel({
                 </span>
                 <span className="text-[10px] text-emerald-400 font-medium">100% Free & Offline</span>
               </label>
-              <select
-                className="form-select text-xs"
-                value={bgmTrackId}
-                onChange={(e) => handleSelectTrack(e.target.value)}
-              >
-                {BGM_PRESETS.map((preset) => (
-                  <option key={preset.id} value={preset.id}>
-                    {preset.name} ({preset.genre})
-                  </option>
-                ))}
-                <option value="custom">📁 Custom Music Upload...</option>
-              </select>
-            </div>
+              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide snap-x">
+                
+                {/* 1. None Button */}
+                <button
+                  onClick={() => handleSelectTrack('none')}
+                  className={`snap-start flex-shrink-0 w-16 h-16 rounded-xl flex flex-col items-center justify-center gap-1 p-1 transition-all relative overflow-hidden border ${
+                    bgmTrackId === 'none' || !bgmTrackId
+                      ? 'border-rose-500 bg-rose-500/10 text-rose-400'
+                      : 'border-gray-700 hover:border-gray-500 text-gray-400'
+                  }`}
+                >
+                  <Volume2 size={16} className={bgmTrackId === 'none' ? 'text-rose-400' : 'text-gray-400'} />
+                  <span className="text-[9px] font-bold text-center">None</span>
+                </button>
 
-            {/* Live Audition / Listen Button */}
-            {bgmTrackId !== 'none' && (
-              <button
-                type="button"
-                className={`btn w-full flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${
-                  isPreviewingBgm
-                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 hover:bg-rose-500/30 animate-pulse'
-                    : 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-600/30'
-                }`}
-                onClick={() => handleTogglePreview()}
-              >
-                {isPreviewingBgm ? (
-                  <>
-                    <Square size={14} className="fill-current" />
-                    <span>⏹ Stop Audio Preview</span>
-                  </>
-                ) : (
-                  <>
-                    <Play size={14} className="fill-current" />
-                    <span>▶ Preview Music Track</span>
-                  </>
-                )}
-              </button>
-            )}
+                {/* 2. Custom Upload Placeholder */}
+                <button
+                  onClick={() => handleSelectTrack('custom')}
+                  className={`snap-start flex-shrink-0 w-16 h-16 rounded-xl flex flex-col items-center justify-center gap-1 p-1 transition-all relative overflow-hidden border-2 border-dashed ${
+                    bgmTrackId === 'custom'
+                      ? 'border-indigo-500 bg-indigo-500/10'
+                      : 'border-gray-600 hover:border-gray-400 bg-gray-800/30'
+                  }`}
+                >
+                  <Upload size={16} className={bgmTrackId === 'custom' ? 'text-indigo-400' : 'text-gray-400'} />
+                  <span className="text-[9px] font-bold text-center leading-tight">Upload<br/>New</span>
+                </button>
+
+                {/* 3. Saved Custom BGMs */}
+                {savedBgms.map((bgm) => {
+                  const isSelected = bgmTrackId === bgm.id;
+                  return (
+                    <button
+                      key={bgm.id}
+                      onClick={() => handleSelectTrack(bgm.id, bgm.blob)}
+                      className={`snap-start flex-shrink-0 w-16 h-16 rounded-xl flex flex-col items-center justify-center gap-1 p-1 transition-all relative overflow-hidden group ${
+                        isSelected 
+                          ? 'border-2 border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)]' 
+                          : 'border border-gray-700/50 hover:border-gray-500'
+                      }`}
+                    >
+                      <div className="absolute inset-0 opacity-20 group-hover:opacity-30 transition-opacity bg-gradient-to-br from-emerald-600 to-teal-800" />
+                      <Music size={16} className={isSelected ? 'text-emerald-400 animate-spin-slow' : 'text-gray-400'} />
+                      <span className="text-[9px] font-bold text-center leading-tight z-10 truncate w-full px-1" title={bgm.name}>{bgm.name}</span>
+                      <span className="text-[7px] text-emerald-400 uppercase tracking-wider z-10">Saved</span>
+                      
+                      {/* Play/Pause Preview Button (Centered) */}
+                      <button
+                        className={`absolute inset-0 m-auto w-8 h-8 flex items-center justify-center rounded-full bg-emerald-500/90 text-white transition-all z-20 hover:bg-emerald-400 hover:scale-110 shadow-lg ${
+                          isPreviewingBgm === bgm.id ? 'opacity-100 scale-100' : 'opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100'
+                        }`}
+                        onClick={(e) => { e.stopPropagation(); handleTogglePreview(bgm.id, bgm.blob); }}
+                        title={isPreviewingBgm === bgm.id ? "Stop Preview" : "Play Preview"}
+                      >
+                        {isPreviewingBgm === bgm.id ? <Pause fill="white" size={14} /> : <Play fill="white" size={14} className="ml-0.5" />}
+                      </button>
+
+                      {/* Delete Button */}
+                      <span 
+                        className="absolute top-1 right-1 w-4 h-4 flex items-center justify-center rounded-full bg-rose-500/80 text-white opacity-0 group-hover:opacity-100 transition-opacity z-30 hover:bg-rose-500 cursor-pointer"
+                        title="Delete saved track"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (isPreviewingBgm === bgm.id) {
+                            speechManager.stopBgm();
+                            setIsPreviewingBgm(false);
+                          }
+                          await deleteCustomBgm(bgm.id);
+                          const newSaved = await getCustomBgms();
+                          setSavedBgms(newSaved);
+                          if (bgmTrackId === bgm.id) handleSelectTrack('none');
+                        }}
+                      >
+                        <Trash2 size={9} />
+                      </span>
+                    </button>
+                  );
+                })}
+
+                {/* 4. Royalty Free Presets */}
+                {BGM_PRESETS.map((preset) => {
+                  if (preset.id === 'none') return null;
+                  const isSelected = bgmTrackId === preset.id;
+                  return (
+                    <button
+                      key={preset.id}
+                      onClick={() => handleSelectTrack(preset.id)}
+                      className={`snap-start flex-shrink-0 w-16 h-16 rounded-xl flex flex-col items-center justify-center gap-1 p-1 transition-all relative overflow-hidden group ${
+                        isSelected 
+                          ? 'border-2 border-indigo-500 shadow-[0_0_15px_rgba(139,92,246,0.3)]' 
+                          : 'border border-gray-700/50 hover:border-gray-500'
+                      }`}
+                    >
+                      <div className={`absolute inset-0 opacity-20 group-hover:opacity-30 transition-opacity bg-gradient-to-br ${
+                        preset.id.length % 3 === 0 ? 'from-purple-600 to-blue-600' :
+                        preset.id.length % 2 === 0 ? 'from-emerald-500 to-teal-700' :
+                        'from-rose-500 to-orange-500'
+                      }`} />
+                      
+                      <Disc size={16} className={isSelected ? 'text-indigo-400 animate-spin-slow' : 'text-gray-400'} />
+                      <span className="text-[9px] font-bold text-center leading-tight z-10">{preset.name}</span>
+                      <span className="text-[7px] text-gray-400 uppercase tracking-wider z-10">{preset.genre.split('/')[0]}</span>
+
+                      {/* Play/Pause Preview Button (Centered) */}
+                      <button
+                        className={`absolute inset-0 m-auto w-8 h-8 flex items-center justify-center rounded-full bg-indigo-500/90 text-white transition-all z-20 hover:bg-indigo-400 hover:scale-110 shadow-lg ${
+                          isPreviewingBgm === preset.id ? 'opacity-100 scale-100' : 'opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100'
+                        }`}
+                        onClick={(e) => { e.stopPropagation(); handleTogglePreview(preset.id); }}
+                        title={isPreviewingBgm === preset.id ? "Stop Preview" : "Play Preview"}
+                      >
+                        {isPreviewingBgm === preset.id ? <Pause fill="white" size={14} /> : <Play fill="white" size={14} className="ml-0.5" />}
+                      </button>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
             {bgmTrackId === 'custom' && (
               <div className="card space-y-2">
@@ -661,11 +754,26 @@ export default function CustomizerPanel({
                   type="file"
                   accept="audio/*"
                   className="form-input text-xs"
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     if (e.target.files && e.target.files[0]) {
-                      setCustomBgmFile(e.target.files[0]);
-                      if (isPreviewingBgm) {
-                        speechManager.playBgm(e.target.files[0], bgmVolume, 'custom');
+                      const file = e.target.files[0];
+                      const newId = 'custom-' + Date.now();
+                      
+                      try {
+                        // Save to IndexedDB
+                        await saveCustomBgm(newId, file.name, file);
+                        const newSaved = await getCustomBgms();
+                        setSavedBgms(newSaved);
+                        
+                        // Select it immediately
+                        setBgmTrackId(newId);
+                        setCustomBgmFile(file);
+                        if (isPreviewingBgm) {
+                          speechManager.playBgm(file, bgmVolume, 'custom');
+                        }
+                      } catch (err) {
+                        console.error('Failed to save custom BGM:', err);
+                        alert('Could not save file to browser storage. It might be too large.');
                       }
                     }
                   }}
