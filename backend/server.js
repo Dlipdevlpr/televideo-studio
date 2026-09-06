@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import { createCanvas } from 'canvas';
+import { createCanvas, loadImage } from 'canvas';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import fs from 'fs';
@@ -23,7 +23,7 @@ app.use(express.json({ limit: '50mb' }));
 
 app.post('/api/export', async (req, res) => {
   try {
-    const { config, audioBase64, bgmBase64, bgmUrl, bgmVolume = 0.20, durationSec } = req.body;
+    const { config, customBgBase64, audioBase64, bgmBase64, bgmUrl, bgmVolume = 0.20, durationSec } = req.body;
     
     console.log(`Starting export: ${durationSec} seconds...`);
     
@@ -161,6 +161,19 @@ app.post('/api/export', async (req, res) => {
 
     // 4. Generate frames and pipe to FFmpeg
     console.log(`Generating ${totalFrames} frames...`);
+
+    // Load custom background image if provided
+    let customBgImg = null;
+    if (customBgBase64) {
+      try {
+        console.log('Loading custom background image for export...');
+        customBgImg = await loadImage(customBgBase64);
+        console.log(`Custom background image loaded (${customBgImg.width}x${customBgImg.height})`);
+      } catch (err) {
+        console.warn('Could not load custom background image on backend:', err);
+      }
+    }
+
     const canvas = createCanvas(config.canvasWidth, config.canvasHeight);
     const ctx = canvas.getContext('2d');
     
@@ -172,6 +185,7 @@ app.post('/api/export', async (req, res) => {
         
         const frameConfig = {
           ...config,
+          customBgImg,
           progress,
           currentTime,
           width: config.canvasWidth,

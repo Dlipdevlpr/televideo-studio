@@ -25,6 +25,7 @@ export default function App() {
   const [fontSize, setFontSize] = useState(36);
   const [textColor, setTextColor] = useState('#ffffff');
   const [highlightColor, setHighlightColor] = useState('#8b5cf6');
+  const [enableHighlight, setEnableHighlight] = useState(true);
   const [activeLineBg, setActiveLineBg] = useState('rgba(139, 92, 246, 0.25)');
   const [boxOpacity, setBoxOpacity] = useState(0.6);
   const [bgTheme, setBgTheme] = useState('animated-gradient');
@@ -56,6 +57,7 @@ export default function App() {
   const [bgmTrackId, setBgmTrackId] = useState('lofi-beats');
   const [bgmVolume, setBgmVolume] = useState(0.20);
   const [customBgmFile, setCustomBgmFile] = useState(null);
+  const [customBgImageFile, setCustomBgImageFile] = useState(null);
 
   // TTS Selective Line Scope State
   const [ttsRangeMode, setTtsRangeMode] = useState('first-line'); // 'first-line' | 'first-two' | 'custom' | 'full'
@@ -75,6 +77,7 @@ export default function App() {
     if (cfg.fontSize) setFontSize(cfg.fontSize);
     if (cfg.textColor) setTextColor(cfg.textColor);
     if (cfg.highlightColor) setHighlightColor(cfg.highlightColor);
+    if (cfg.enableHighlight !== undefined) setEnableHighlight(cfg.enableHighlight);
     if (cfg.activeLineBg) setActiveLineBg(cfg.activeLineBg);
     if (cfg.bgTheme) setBgTheme(cfg.bgTheme);
     if (cfg.solidBgColor) setSolidBgColor(cfg.solidBgColor);
@@ -216,6 +219,7 @@ export default function App() {
             fontSize={fontSize}
             textColor={textColor}
             highlightColor={highlightColor}
+            enableHighlight={enableHighlight}
             activeLineBg={activeLineBg}
             boxOpacity={boxOpacity}
             bgTheme={bgTheme}
@@ -235,6 +239,7 @@ export default function App() {
             bgmTrackId={bgmTrackId}
             bgmVolume={bgmVolume}
             customBgmFile={customBgmFile}
+            customBgImageFile={customBgImageFile}
             isExporting={isExporting}
             setIsExporting={setIsExporting}
             showReadingBox={showReadingBox}
@@ -260,6 +265,8 @@ export default function App() {
             setTextColor={setTextColor}
             highlightColor={highlightColor}
             setHighlightColor={setHighlightColor}
+            enableHighlight={enableHighlight}
+            setEnableHighlight={setEnableHighlight}
             activeLineBg={activeLineBg}
             setActiveLineBg={setActiveLineBg}
             bgTheme={bgTheme}
@@ -294,6 +301,8 @@ export default function App() {
             setBgmVolume={setBgmVolume}
             customBgmFile={customBgmFile}
             setCustomBgmFile={setCustomBgmFile}
+            customBgImageFile={customBgImageFile}
+            setCustomBgImageFile={setCustomBgImageFile}
           />
         </div>
       </main>

@@ -1,7 +1,8 @@
 export const DB_NAME = 'TeleVideoDB';
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 export const STORE_BGM = 'custom_bgm';
 export const STORE_AUDIO = 'custom_audio';
+export const STORE_BG_IMAGE = 'custom_bg_image';
 
 function initDB() {
   return new Promise((resolve, reject) => {
@@ -15,6 +16,9 @@ function initDB() {
       }
       if (!db.objectStoreNames.contains(STORE_AUDIO)) {
         db.createObjectStore(STORE_AUDIO, { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains(STORE_BG_IMAGE)) {
+        db.createObjectStore(STORE_BG_IMAGE, { keyPath: 'id' });
       }
     };
   });
@@ -82,6 +86,40 @@ export async function deleteCustomAudio(id) {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_AUDIO, 'readwrite');
     const store = tx.objectStore(STORE_AUDIO);
+    store.delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+// Custom Background Image Helpers
+export async function saveCustomBgImage(id, name, blob) {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_BG_IMAGE, 'readwrite');
+    const store = tx.objectStore(STORE_BG_IMAGE);
+    store.put({ id, name, blob, timestamp: Date.now() });
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function getCustomBgImages() {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_BG_IMAGE, 'readonly');
+    const store = tx.objectStore(STORE_BG_IMAGE);
+    const req = store.getAll();
+    req.onsuccess = () => resolve(req.result.sort((a, b) => b.timestamp - a.timestamp));
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function deleteCustomBgImage(id) {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_BG_IMAGE, 'readwrite');
+    const store = tx.objectStore(STORE_BG_IMAGE);
     store.delete(id);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);

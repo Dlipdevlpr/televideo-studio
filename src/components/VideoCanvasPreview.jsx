@@ -16,6 +16,7 @@ export default function VideoCanvasPreview({
   fontSize,
   textColor,
   highlightColor,
+  enableHighlight = true,
   activeLineBg,
   boxOpacity,
   bgTheme,
@@ -35,6 +36,7 @@ export default function VideoCanvasPreview({
   bgmTrackId,
   bgmVolume,
   customBgmFile,
+  customBgImageFile,
   isExporting,
   setIsExporting,
 
@@ -71,6 +73,18 @@ export default function VideoCanvasPreview({
   const isPlayingRef = useRef(false);
   const isRecordingRef = useRef(false);
   const lastUiUpdateRef = useRef(0);
+  const customBgImgRef = useRef(null);
+
+  // Load custom bg image
+  useEffect(() => {
+    if (customBgImageFile) {
+      const img = new Image();
+      img.onload = () => { customBgImgRef.current = img; };
+      img.src = URL.createObjectURL(customBgImageFile);
+    } else {
+      customBgImgRef.current = null;
+    }
+  }, [customBgImageFile]);
 
   // Direct DOM refs for high-performance UI updates (bypasses React)
   const timeDisplayRef = useRef(null);
@@ -106,10 +120,11 @@ export default function VideoCanvasPreview({
   // this runs during the render phase itself, before paint).
   renderConfigRef.current = {
     canvasWidth, canvasHeight, scriptText, aspectRatio, scrollMode,
-    fontFamily, fontSize, textColor, highlightColor, activeLineBg,
+    fontFamily, fontSize, textColor, highlightColor, enableHighlight, activeLineBg,
     boxOpacity, textPosition, bgTheme, solidBgColor, showProgressBar,
     showAudioVisualizer, watermarkText, showWatermark, showReadingBox,
-    boxScale, boxWidthPercent, boxBorderRadius, boxBorderWidth
+    boxScale, boxWidthPercent, boxBorderRadius, boxBorderWidth,
+    customBgImg: customBgImgRef.current
   };
 
   // TTS text helper
@@ -195,6 +210,7 @@ export default function VideoCanvasPreview({
           fontSize: c.fontSize,
           textColor: c.textColor,
           highlightColor: c.highlightColor,
+          enableHighlight: c.enableHighlight,
           activeLineBg: c.activeLineBg,
           boxOpacity: c.boxOpacity,
           textPosition: c.textPosition,
@@ -208,7 +224,8 @@ export default function VideoCanvasPreview({
           boxScale: c.boxScale,
           boxWidthPercent: c.boxWidthPercent,
           boxBorderRadius: c.boxBorderRadius,
-          boxBorderWidth: c.boxBorderWidth
+          boxBorderWidth: c.boxBorderWidth,
+          customBgImg: c.customBgImg
         });
       }
 
@@ -344,6 +361,27 @@ export default function VideoCanvasPreview({
         }
       }
 
+      // Extract Custom Background Image for backend
+      let customBgBase64 = null;
+      if (bgTheme === 'custom-image') {
+        if (customBgImageFile) {
+          const reader = new FileReader();
+          reader.readAsDataURL(customBgImageFile);
+          customBgBase64 = await new Promise(res => reader.onload = () => res(reader.result));
+        } else if (customBgImgRef.current) {
+          try {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = customBgImgRef.current.naturalWidth || customBgImgRef.current.width || 720;
+            tempCanvas.height = customBgImgRef.current.naturalHeight || customBgImgRef.current.height || 1280;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(customBgImgRef.current, 0, 0);
+            customBgBase64 = tempCanvas.toDataURL('image/jpeg', 0.9);
+          } catch (e) {
+            console.warn('Could not extract dataURL from customBgImgRef:', e);
+          }
+        }
+      }
+
       // We still play the UI animation for the user while it exports on the backend
       currentTimeRef.current = 0;
       progressRef.current = 0;
@@ -353,6 +391,7 @@ export default function VideoCanvasPreview({
       
       const payload = {
         config: renderConfigRef.current,
+        customBgBase64,
         audioBase64,
         bgmBase64,
         bgmUrl,

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sliders, Type, Palette, Eye, Layout, Square, Music, Volume2, Upload, Disc, Play, Pause, Save, Trash2, Bookmark } from 'lucide-react';
 import { BGM_PRESETS } from '../utils/bgmData';
-import { saveCustomBgm, getCustomBgms, deleteCustomBgm } from '../utils/storageDB';
+import { saveCustomBgm, getCustomBgms, deleteCustomBgm, saveCustomBgImage, getCustomBgImages, deleteCustomBgImage } from '../utils/storageDB';
 import { speechManager } from '../utils/speechManager';
 
 export default function CustomizerPanel({
@@ -15,6 +15,8 @@ export default function CustomizerPanel({
   setTextColor,
   highlightColor,
   setHighlightColor,
+  enableHighlight = true,
+  setEnableHighlight,
   activeLineBg,
   setActiveLineBg,
   bgTheme,
@@ -52,7 +54,9 @@ export default function CustomizerPanel({
   bgmVolume,
   setBgmVolume,
   customBgmFile,
-  setCustomBgmFile
+  setCustomBgmFile,
+  customBgImageFile,
+  setCustomBgImageFile
 }) {
   const [activeTab, setActiveTab] = useState('mode');
   const [isPreviewingBgm, setIsPreviewingBgm] = useState(false);
@@ -60,6 +64,7 @@ export default function CustomizerPanel({
   const [presetName, setPresetName] = useState('');
   const [selectedPreset, setSelectedPreset] = useState('');
   const [savedBgms, setSavedBgms] = useState([]);
+  const [savedBgImages, setSavedBgImages] = useState([]);
 
   useEffect(() => {
     // Load presets from localStorage
@@ -76,6 +81,12 @@ export default function CustomizerPanel({
     getCustomBgms().then(bgms => {
       setSavedBgms(bgms || []);
     }).catch(e => console.error(e));
+
+    // Load custom BgImages from IndexedDB
+    getCustomBgImages().then(imgs => {
+      const processed = (imgs || []).map(img => ({ ...img, url: URL.createObjectURL(img.blob) }));
+      setSavedBgImages(processed);
+    }).catch(e => console.error(e));
   }, []);
 
   const savePreset = () => {
@@ -83,7 +94,7 @@ export default function CustomizerPanel({
     const newPresets = {
       ...presets,
       [presetName.trim()]: {
-        scrollMode, fontFamily, fontSize, textColor, highlightColor,
+        scrollMode, fontFamily, fontSize, textColor, highlightColor, enableHighlight,
         activeLineBg, bgTheme, solidBgColor, textPosition, speedWpm,
         showProgressBar, showAudioVisualizer, watermarkText, showWatermark,
         showReadingBox, boxScale, boxWidthPercent, boxBorderRadius, boxBorderWidth,
@@ -106,6 +117,7 @@ export default function CustomizerPanel({
     if (p.fontSize !== undefined) setFontSize(p.fontSize);
     if (p.textColor !== undefined) setTextColor(p.textColor);
     if (p.highlightColor !== undefined) setHighlightColor(p.highlightColor);
+    if (p.enableHighlight !== undefined && setEnableHighlight) setEnableHighlight(p.enableHighlight);
     if (p.activeLineBg !== undefined) setActiveLineBg(p.activeLineBg);
     if (p.bgTheme !== undefined) setBgTheme(p.bgTheme);
     if (p.solidBgColor !== undefined) setSolidBgColor(p.solidBgColor);
@@ -511,21 +523,45 @@ export default function CustomizerPanel({
             </div>
 
             <div className="form-group">
-              <label className="form-label">Active Word / Highlight Accent</label>
-              <div className="color-picker-row">
-                <input
-                  type="color"
-                  className="color-swatch-input"
-                  value={highlightColor}
-                  onChange={(e) => setHighlightColor(e.target.value)}
-                />
-                <input
-                  type="text"
-                  className="form-input text-xs font-mono"
-                  value={highlightColor}
-                  onChange={(e) => setHighlightColor(e.target.value)}
-                />
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="form-label mb-0">Active Word / Highlight Accent</label>
+                <div 
+                  className="flex items-center gap-1.5 cursor-pointer select-none" 
+                  onClick={() => setEnableHighlight(!enableHighlight)}
+                >
+                  <span className={`text-[10px] font-bold tracking-wider ${enableHighlight ? 'text-indigo-400' : 'text-gray-500'}`}>
+                    {enableHighlight ? 'ON' : 'OFF'}
+                  </span>
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 accent-indigo-500 cursor-pointer"
+                    checked={enableHighlight}
+                    onChange={(e) => setEnableHighlight(e.target.checked)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
               </div>
+
+              {enableHighlight ? (
+                <div className="color-picker-row">
+                  <input
+                    type="color"
+                    className="color-swatch-input"
+                    value={highlightColor}
+                    onChange={(e) => setHighlightColor(e.target.value)}
+                  />
+                  <input
+                    type="text"
+                    className="form-input text-xs font-mono"
+                    value={highlightColor}
+                    onChange={(e) => setHighlightColor(e.target.value)}
+                  />
+                </div>
+              ) : (
+                <p className="text-[11px] text-gray-500 italic mt-1">
+                  Highlighting disabled — text displays in Main Text Color.
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -546,6 +582,7 @@ export default function CustomizerPanel({
                 <option value="warm-sunset">🌅 Warm Sunset Magenta</option>
                 <option value="emerald-gold">✨ Emerald Gold Luxury</option>
                 <option value="solid-color">🎨 Solid Color Backdrop</option>
+                <option value="custom-image">🖼️ Custom Image</option>
               </select>
             </div>
 
@@ -566,6 +603,66 @@ export default function CustomizerPanel({
                     onChange={(e) => setSolidBgColor(e.target.value)}
                   />
                 </div>
+              </div>
+            )}
+
+            {bgTheme === 'custom-image' && (
+              <div className="form-group">
+                <label className="form-label">Custom Image</label>
+                
+                {/* Saved Background Images */}
+                {savedBgImages.length > 0 && (
+                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide snap-x mb-2">
+                    {savedBgImages.map(img => {
+                      const isSelected = customBgImageFile?.name === img.name;
+                      const imgUrl = img.url || URL.createObjectURL(img.blob); // fallback just in case
+                      return (
+                        <div key={img.id} className="relative group flex-shrink-0 snap-start">
+                          <img 
+                            src={imgUrl} 
+                            alt={img.name} 
+                            className={`w-16 h-16 object-cover rounded-xl border-2 cursor-pointer transition-all ${isSelected ? 'border-indigo-500 shadow-md' : 'border-gray-700 hover:border-gray-500'}`}
+                            onClick={() => setCustomBgImageFile(img.blob)}
+                          />
+                          <button
+                            className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center rounded-full bg-rose-500 text-white opacity-0 group-hover:opacity-100 transition-opacity z-30"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              await deleteCustomBgImage(img.id);
+                              const imgs = await getCustomBgImages();
+                              setSavedBgImages(imgs.map(i => ({ ...i, url: URL.createObjectURL(i.blob) })));
+                              if (isSelected) setCustomBgImageFile(null);
+                            }}
+                          >
+                            <Trash2 size={10} />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+                
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="form-input text-xs"
+                  onChange={async (e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      const file = e.target.files[0];
+                      const newId = 'bg-' + Date.now();
+                      
+                      try {
+                        await saveCustomBgImage(newId, file.name, file);
+                        const imgs = await getCustomBgImages();
+                        setSavedBgImages(imgs.map(i => ({ ...i, url: URL.createObjectURL(i.blob) })));
+                        setCustomBgImageFile(file);
+                      } catch (err) {
+                        console.error('Failed to save background image:', err);
+                        alert('Could not save file to browser storage. It might be too large.');
+                      }
+                    }
+                  }}
+                />
               </div>
             )}
           </div>

@@ -62,6 +62,7 @@ export function renderTeleprompterCanvas(ctx, options) {
     fontSize = 36,
     textColor = '#ffffff',
     highlightColor = '#f59e0b',
+    enableHighlight = true,
     activeLineBg = 'rgba(99, 102, 241, 0.25)',
     boxOpacity = 0.6,
     textPosition = 'center', // 'top' | 'center' | 'bottom'
@@ -76,6 +77,7 @@ export function renderTeleprompterCanvas(ctx, options) {
     // Background Config
     bgTheme = 'animated-gradient', // 'animated-gradient' | 'cyberpunk-grid' | 'dark-glass' | 'warm-sunset' | 'emerald-gold' | 'solid-color'
     solidBgColor = '#090b10',
+    customBgImg = null,
     
     // Overlays
     showProgressBar = true,
@@ -91,7 +93,7 @@ export function renderTeleprompterCanvas(ctx, options) {
   // ----------------------------------------------------
   // 1. RENDER BACKGROUND
   // ----------------------------------------------------
-  renderBackground(ctx, width, height, bgTheme, solidBgColor, currentTime);
+  renderBackground(ctx, width, height, bgTheme, solidBgColor, currentTime, customBgImg);
 
   if (!scriptText || scriptText.trim().length === 0) {
     // Draw placeholder message
@@ -121,6 +123,7 @@ export function renderTeleprompterCanvas(ctx, options) {
       fontSize,
       textColor,
       highlightColor,
+      enableHighlight,
       activeLineBg,
       textPosition,
       showReadingBox,
@@ -140,6 +143,7 @@ export function renderTeleprompterCanvas(ctx, options) {
       fontSize,
       textColor,
       highlightColor,
+      enableHighlight,
       activeLineBg,
       textPosition,
       showReadingBox,
@@ -158,6 +162,7 @@ export function renderTeleprompterCanvas(ctx, options) {
       fontSize,
       textColor,
       highlightColor,
+      enableHighlight,
       activeLineBg
     });
   } else {
@@ -172,6 +177,7 @@ export function renderTeleprompterCanvas(ctx, options) {
       fontSize,
       textColor,
       highlightColor,
+      enableHighlight,
       activeLineBg,
       boxOpacity,
       textPosition,
@@ -200,10 +206,31 @@ export function renderTeleprompterCanvas(ctx, options) {
 }
 
 // Background Renderer
-function renderBackground(ctx, width, height, theme, solidColor, time) {
+function renderBackground(ctx, width, height, theme, solidColor, time, customBgImg) {
   ctx.save();
 
-  if (theme === 'solid-color') {
+  if (theme === 'custom-image' && customBgImg) {
+    // Draw the custom image, scaling to fill/cover the canvas
+    const imgRatio = customBgImg.width / customBgImg.height;
+    const canvasRatio = width / height;
+    let drawWidth, drawHeight, offsetX = 0, offsetY = 0;
+    
+    if (canvasRatio > imgRatio) {
+      drawWidth = width;
+      drawHeight = width / imgRatio;
+      offsetY = (height - drawHeight) / 2;
+    } else {
+      drawHeight = height;
+      drawWidth = height * imgRatio;
+      offsetX = (width - drawWidth) / 2;
+    }
+    ctx.drawImage(customBgImg, offsetX, offsetY, drawWidth, drawHeight);
+    
+    // Optional: add a slight dark overlay to ensure text readability
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(0, 0, width, height);
+
+  } else if (theme === 'solid-color') {
     ctx.fillStyle = solidColor;
     ctx.fillRect(0, 0, width, height);
   } else if (theme === 'cyberpunk-grid') {
@@ -312,6 +339,7 @@ function renderSmoothScroll(ctx, config) {
     fontSize,
     textColor,
     highlightColor,
+    enableHighlight = true,
     activeLineBg,
     boxOpacity,
     textPosition,
@@ -333,25 +361,26 @@ function renderSmoothScroll(ctx, config) {
     if (p.trim() === '') {
       allLines.push('');
     } else {
-      const wrapped = wrapText(ctx, p.trim(), maxWidth);
-      allLines.push(...wrapped);
+      const wrapped = wrapText(ctx, p, maxWidth);
+      allLines = allLines.concat(wrapped);
     }
   });
 
-  const lineHeight = fontSize * 1.55;
+  const lineHeight = fontSize * 1.5;
   const totalContentHeight = allLines.length * lineHeight;
-  
+
   let targetCenterY = height / 2;
-  if (textPosition === 'top') targetCenterY = height * 0.3;
-  if (textPosition === 'bottom') targetCenterY = height * 0.7;
+  if (textPosition === 'top') targetCenterY = height * 0.28;
+  if (textPosition === 'bottom') targetCenterY = height * 0.72;
 
-  const startY = targetCenterY + height * 0.2;
-  const endY = targetCenterY - totalContentHeight - height * 0.2;
-  const currentScrollY = startY + progress * (endY - startY);
+  // Compute smooth scroll position: from below center to above top
+  const startScrollY = targetCenterY + height * 0.35;
+  const endScrollY = targetCenterY - totalContentHeight - height * 0.2;
+  const currentScrollY = startScrollY + progress * (endScrollY - startScrollY);
 
-  // Draw central Reading Guide Box (if enabled)
+  // Focus Guide Box Outline (center area)
   if (showReadingBox) {
-    const boxHeight = lineHeight * 1.4 * boxScale;
+    const boxHeight = lineHeight * 1.35 * boxScale;
     const boxWidth = width * (boxWidthPercent / 100);
     const boxX = (width - boxWidth) / 2;
 
@@ -360,7 +389,7 @@ function renderSmoothScroll(ctx, config) {
     ctx.fill();
 
     if (boxBorderWidth > 0) {
-      ctx.strokeStyle = highlightColor;
+      ctx.strokeStyle = enableHighlight ? highlightColor : 'rgba(255, 255, 255, 0.4)';
       ctx.lineWidth = boxBorderWidth;
       ctx.stroke();
     }
@@ -375,8 +404,8 @@ function renderSmoothScroll(ctx, config) {
       const isCentered = distFromCenter < lineHeight * 0.6;
 
       if (isCentered) {
-        ctx.fillStyle = highlightColor;
-        ctx.font = `800 ${fontSize * 1.06}px ${fontFamily}, sans-serif`;
+        ctx.fillStyle = enableHighlight ? highlightColor : textColor;
+        ctx.font = `700 ${fontSize}px ${fontFamily}, sans-serif`;
         // Dark drop shadow for crisp readability without washed-out white bloom
         ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
         ctx.shadowBlur = 4;
@@ -411,6 +440,7 @@ function renderKineticWords(ctx, config) {
     fontSize,
     textColor,
     highlightColor,
+    enableHighlight = true,
     activeLineBg,
     textPosition
   } = config;
@@ -460,7 +490,7 @@ function renderKineticWords(ctx, config) {
       const wordCenterX = currentX + wWidth / 2;
       const isActive = idx === activeInChunk;
 
-      if (isActive) {
+      if (isActive && enableHighlight) {
         ctx.fillStyle = highlightColor;
         drawRoundedRect(ctx, currentX - 10, centerY - bigFontSize * 0.65, wWidth + 20, bigFontSize * 1.3, 12);
         ctx.fill();
@@ -486,7 +516,7 @@ function renderKineticWords(ctx, config) {
       const isActive = idx === activeInChunk;
       const wWidth = ctx.measureText(word.toUpperCase()).width;
 
-      if (isActive) {
+      if (isActive && enableHighlight) {
         ctx.fillStyle = highlightColor;
         drawRoundedRect(ctx, width / 2 - wWidth / 2 - 14, lineY - bigFontSize * 0.6, wWidth + 28, bigFontSize * 1.2, 12);
         ctx.fill();
@@ -517,6 +547,7 @@ function renderLineFocus(ctx, config) {
     fontSize,
     textColor,
     highlightColor,
+    enableHighlight = true,
     activeLineBg,
     textPosition,
     showReadingBox = true,
@@ -561,7 +592,7 @@ function renderLineFocus(ctx, config) {
     ctx.fill();
 
     if (boxBorderWidth > 0) {
-      ctx.strokeStyle = highlightColor;
+      ctx.strokeStyle = enableHighlight ? highlightColor : 'rgba(255, 255, 255, 0.4)';
       ctx.lineWidth = boxBorderWidth;
       ctx.stroke();
     }
@@ -575,13 +606,13 @@ function renderLineFocus(ctx, config) {
       const isActive = offset === 0;
 
       if (isActive) {
-        ctx.fillStyle = highlightColor;
-        ctx.font = `800 ${fontSize * 1.1}px ${fontFamily}, sans-serif`;
+        ctx.fillStyle = enableHighlight ? highlightColor : textColor;
+        ctx.font = `700 ${fontSize}px ${fontFamily}, sans-serif`;
         ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
         ctx.shadowBlur = 4;
         ctx.shadowOffsetY = 2;
       } else {
-        ctx.font = `600 ${fontSize * 0.9}px ${fontFamily}, sans-serif`;
+        ctx.font = `700 ${fontSize}px ${fontFamily}, sans-serif`;
         ctx.fillStyle = textColor;
         ctx.globalAlpha = Math.max(0.15, 0.6 - Math.abs(offset) * 0.25);
         ctx.shadowBlur = 0;
@@ -609,6 +640,7 @@ function renderNewsTicker(ctx, config) {
     fontSize,
     textColor,
     highlightColor,
+    enableHighlight = true,
     activeLineBg
   } = config;
 
@@ -618,15 +650,16 @@ function renderNewsTicker(ctx, config) {
 
   const bannerHeight = 80;
   const bannerY = height - bannerHeight - 40;
+  const tickerAccent = enableHighlight ? highlightColor : '#38bdf8';
 
   ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
   ctx.fillRect(0, bannerY, width, bannerHeight);
 
-  ctx.fillStyle = highlightColor;
+  ctx.fillStyle = tickerAccent;
   ctx.fillRect(0, bannerY, width, 4);
   ctx.fillRect(0, bannerY + bannerHeight - 4, width, 4);
 
-  ctx.fillStyle = highlightColor;
+  ctx.fillStyle = tickerAccent;
   ctx.fillRect(0, bannerY, 140, bannerHeight);
   ctx.fillStyle = '#000000';
   ctx.font = `900 16px ${fontFamily}, sans-serif`;
